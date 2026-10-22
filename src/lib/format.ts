@@ -61,6 +61,17 @@ export function rateColor(r: number | null | undefined): string | undefined {
 }
 
 /**
+ * Цвет средней оценки тайтла. Средние почти всегда 7–9.5, и на шкале 1–10 они
+ * все выходят одинаково зелёными — растягиваем шкалу на 6–9.5.
+ */
+export function avgColor(r: number | null | undefined): string | undefined {
+  if (!r) return undefined
+  return rateColor(1 + ((r - AVG_LOW) / (AVG_HIGH - AVG_LOW)) * 9)
+}
+const AVG_LOW = 6
+const AVG_HIGH = 9.5
+
+/**
  * Связки «оценившие также смотрели» — голоса пользователей. Один-два голоса —
  * обычно шутка («Собачья какашка» к «Чёрному клеверу»), показываем от трёх.
  */

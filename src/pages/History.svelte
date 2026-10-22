@@ -2,7 +2,9 @@
   import { Trash2 } from '@lucide/svelte'
   import AnimeCard from '../lib/components/AnimeCard.svelte'
   import { ago } from '../lib/format'
-  import { recent, removeFromHistory } from '../lib/stores/history.svelte'
+  import { recent, removeFromHistory, syncHistory } from '../lib/stores/history.svelte'
+
+  syncHistory()
 
   const items = $derived(recent(300))
 
@@ -26,7 +28,7 @@
           <div class="item">
             <AnimeCard
               anime={{ anime_id: e.animeId, anime_url: e.url, title: e.title, poster: e.poster }}
-              sub="{e.episode} серия · {ago(Math.floor(e.updatedAt / 1000))}"
+              sub="{e.episode ? `${e.episode} серия · ` : ''}{ago(Math.floor(e.updatedAt / 1000))}"
               progress={e.duration ? e.time / e.duration : undefined}
             />
             <div class="dub">{e.dubbing}</div>

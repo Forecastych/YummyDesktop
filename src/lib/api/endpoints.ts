@@ -11,13 +11,19 @@ import type {
   Friend,
   FriendList,
   GenreList,
+  LastWatch,
   Likes,
   ListedAnime,
   ListId,
+  ListTime,
   Post,
+  PostCategory,
   PostShort,
   Profile,
+  Notification,
+  Ref,
   Review,
+  Trailer,
   User,
   UserRecommendation,
   UserStats,
@@ -43,6 +49,7 @@ export interface AnimeFilter {
   sort?: 'title' | 'year' | 'rating' | 'rating_counters' | 'views' | 'top' | 'random' | 'id'
   sort_forward?: boolean
   ids?: number[]
+  studio_ids?: number[]
   offset?: number
   limit?: number
 }
@@ -70,6 +77,23 @@ export const Api = {
   /** Убрать тайтл из рекомендаций сайта (нужен вход). */
   hideRecommendation: (id: number) => api<boolean>(`/anime/${id}/recommend`, { method: 'DELETE' }),
 
+  /** Голос за связку «оценившие этот тайтл смотрели и similarId». */
+  voteRecommendation: (id: number, similarId: number, action: -1 | 0 | 1) =>
+    action
+      ? api<Likes>(`/anime/${id}/recommend/${similarId}/vote`, { method: 'PUT', body: { action } })
+      : api<Likes>(`/anime/${id}/recommend/${similarId}/vote`, { method: 'DELETE' }),
+
+  /** Распределение оценок пользователей 1–10. */
+  animeRates: (id: number, o: Sig = {}) =>
+    api<{ rating: number; count: number }[]>(`/anime/${id}/rates`, { ttl: 30 * MIN, ...o }),
+
+  /** Сколько пользователей держат тайтл в каждом списке (list_id 4 — любимые). */
+  animeListCounts: (id: number, o: Sig = {}) =>
+    api<{ list_id: number; count: number }[]>(`/anime/${id}/lists`, { ttl: 30 * MIN, ...o }),
+
+  /** slug — последняя часть studio.url («/catalog/studio/mappa» → «mappa»). */
+  studio: (slug: string, o: Sig = {}) => api<Ref>(`/anime/studio/${slug}`, { ttl: 24 * HOUR, ...o }),
+
   list: (f: AnimeFilter, o: Sig & Pick<RequestOptions, 'ttl'> = {}) =>
     api<AnimeShort[]>('/anime', { query: f as RequestOptions['query'], ttl: 5 * MIN, ...o }),
 
@@ -93,10 +117,40 @@ export const Api = {
       body: parent ? { text, parent_comment: parent, reply_to_comment: parent } : { text },
     }),
 
+  voteComment: (id: number, action: -1 | 0 | 1) =>
+    action
+      ? api<{ likes: number; dislikes: number }>(`/comments/${id}/vote`, { method: 'PUT', body: { action } })
+      : api<{ likes: number; dislikes: number }>(`/comments/${id}/vote`, { method: 'DELETE' }),
+
+  editComment: (id: number, text: string) => api<Comment>(`/comments/${id}`, { method: 'PATCH', body: { text } }),
+
+  deleteComment: (id: number) => api<boolean>(`/comments/${id}`, { method: 'DELETE', body: {} }),
+
+  /** Причины — как в форме жалобы на сайте (см. CLAIM_REASONS). */
+  claimComment: (id: number, why: number) => api<boolean>(`/comments/${id}/claim`, { method: 'PUT', body: { why } }),
+
+  animeReviews: async (id: number, offset = 0, limit = 10, o: Sig = {}) => {
+    const r = await api<Review[] | { reviews: Review[] }>(`/anime/${id}/reviews`, {
+      query: { offset, limit, sort: 'top' },
+      ttl: 5 * MIN,
+      ...o,
+    })
+    return Array.isArray(r) ? r : (r?.reviews ?? [])
+  },
+
+  trailers: (id: number, o: Sig = {}) => api<Trailer[]>(`/anime/${id}/trailers`, { ttl: HOUR, ...o }),
+
   posts: (skip = 0, category?: string, o: Sig = {}) =>
     api<PostShort[]>('/posts', { query: { limit: 20, skip, category, sort: 'new' }, ttl: 5 * MIN, ...o }),
 
   post: (id: number, o: Sig = {}) => api<Post>(`/posts/${id}`, { ttl: 10 * MIN, ...o }),
+
+  postCategories: () => api<PostCategory[]>('/posts/categories', { ttl: 24 * HOUR, persist: 'post-categories' }),
+
+  votePost: (id: number, action: -1 | 0 | 1) =>
+    action
+      ? api<Likes>(`/posts/${id}/vote`, { method: 'PUT', body: { action } })
+      : api<Likes>(`/posts/${id}/vote`, { method: 'DELETE' }),
 
   // ---- видео блогеров ----
 
@@ -164,6 +218,10 @@ export const Api = {
     return { genres, ratings, types }
   },
 
+  /** Хронометраж тайтлов в каждом списке, в секундах. */
+  userListTime: (id: number, o: Sig = {}) =>
+    api<ListTime[]>(`/users/${id}/stats/lists`, { ttl: 10 * MIN, ...o }),
+
   userFriends: (id: number, list: FriendList, offset = 0, o: Sig = {}) =>
     api<Friend[]>(`/users/${id}/friends/${list}`, { query: { limit: 100, offset }, ttl: MIN, ...o }),
 
@@ -207,4 +265,26 @@ export const Api = {
     }),
 
   unmarkWatched: (videoId: number) => api<unknown>(`/video/${videoId}`, { method: 'DELETE' }),
+
+  /** Последние просмотры аккаунта — с сайта и телефона тоже. */
+  lastWatches: (watches: string[] = []) => api<LastWatch[]>('/video/last-watches', { query: { watches }, ttl: 0 }),
+
+  /** Подписка на новые серии конкретной озвучки в конкретном плеере (любая её серия). */
+  subscribeDubbing: (videoId: number, on: boolean) =>
+    api<boolean>(`/video/${videoId}/subscribe`, { method: on ? 'PUT' : 'DELETE' }),
+
+  // ---- уведомления сайта ----
+
+  notifications: (offset = 0, limit = 30) =>
+    api<Notification[]>('/profile/notifications', { query: { offset, limit }, ttl: 0 }),
+
+  notificationCounts: () => api<{ type: string; count: number }[]>('/profile/notifications/counts', { ttl: 0 }),
+
+  readNotifications: () => api<unknown>('/profile/notifications/read', { method: 'POST' }),
+
+  readNotification: (id: number) => api<unknown>(`/profile/notifications/${id}/read`, { method: 'POST' }),
+
+  deleteNotification: (id: number) => api<unknown>(`/profile/notifications/${id}`, { method: 'DELETE' }),
+
+  clearNotifications: () => api<unknown>('/profile/notifications', { method: 'DELETE' }),
 }

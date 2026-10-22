@@ -1,7 +1,7 @@
 <script lang="ts">
   import { Star, X } from '@lucide/svelte'
   import type { AnimeShort } from '../api/types'
-  import { rateColor, rating } from '../format'
+  import { avgColor, rating } from '../format'
   import { prefetchAnime } from '../prefetch'
   import { link } from '../router.svelte'
   import Poster from './Poster.svelte'
@@ -25,7 +25,7 @@
   <Poster poster={anime.poster} alt={anime.title} {eager} />
   {#if badge}<span class="badge">{badge}</span>{/if}
   {#if r}
-    <span class="rating" style:color={rateColor(r)}><Star size={11} fill="currentColor" />{r.toFixed(1)}</span>
+    <span class="rating" style:color={avgColor(r)}><Star size={11} fill="currentColor" />{r.toFixed(1)}</span>
   {/if}
   <div class="caption">
     <div class="title">{anime.title}</div>

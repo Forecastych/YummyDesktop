@@ -64,3 +64,22 @@ export async function closeSiteLogin() {
   const { invoke } = await import('@tauri-apps/api/core')
   await invoke('site_login_close')
 }
+
+async function invokeSafe(cmd: string, args?: Record<string, unknown>) {
+  if (!isTauri) return
+  const { invoke } = await import('@tauri-apps/api/core')
+  await invoke(cmd, args).catch(() => {})
+}
+
+/** Галочка «Уведомления» в меню трея. */
+export const traySetNotify = (on: boolean) => invokeSafe('tray_set_notify', { on })
+
+/** Крестик прячет окно в трей (true) или закрывает приложение (false). */
+export const setCloseToTray = (on: boolean) => invokeSafe('set_close_to_tray', { on })
+
+/** Подписка на событие от Rust; в браузере — пустышка. */
+export async function onNative<T>(event: string, cb: (payload: T) => void): Promise<() => void> {
+  if (!isTauri) return () => {}
+  const { listen } = await import('@tauri-apps/api/event')
+  return listen<T>(event, (e) => cb(e.payload))
+}

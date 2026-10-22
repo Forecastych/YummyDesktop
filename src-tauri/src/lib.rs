@@ -1,10 +1,13 @@
 use std::borrow::Cow;
+use std::sync::atomic::{AtomicBool, Ordering};
 
 use serde::Serialize;
 use tauri::http::{Request, Response};
+use tauri::menu::{CheckMenuItem, Menu, MenuItem, PredefinedMenuItem};
+use tauri::tray::{MouseButton, MouseButtonState, TrayIconBuilder, TrayIconEvent};
 use tauri::webview::PageLoadEvent;
 use tauri::plugin::{Builder as PluginBuilder, TauriPlugin};
-use tauri::{AppHandle, Emitter, Manager, Runtime, Url, WebviewUrl, WebviewWindowBuilder};
+use tauri::{AppHandle, Emitter, Manager, Runtime, Url, WebviewUrl, WebviewWindowBuilder, WindowEvent, Wry};
 use tauri_plugin_opener::OpenerExt;
 
 const SITE_LOGIN_LABEL: &str = "site-login";
@@ -157,22 +160,92 @@ fn no_ads<R: Runtime>() -> TauriPlugin<R> {
         .build()
 }
 
+// ---- трей: крестик прячет окно, приложение живёт в фоне и шлёт уведомления ----
+
+/// Прятать окно в трей вместо выхода. Настройку присылает фронт.
+static CLOSE_TO_TRAY: AtomicBool = AtomicBool::new(true);
+
+/// Пункт «Уведомления» в меню трея — фронт держит его в синхроне со своей настройкой.
+struct TrayNotify(CheckMenuItem<Wry>);
+
+fn show_main<R: Runtime>(app: &AppHandle<R>) {
+    if let Some(w) = app.get_webview_window("main") {
+        let _ = w.show();
+        let _ = w.unminimize();
+        let _ = w.set_focus();
+    }
+}
+
+fn setup_tray(app: &AppHandle<Wry>) -> tauri::Result<()> {
+    let open = MenuItem::with_id(app, "open", "Открыть", true, None::<&str>)?;
+    let notify = CheckMenuItem::with_id(app, "notify", "Уведомления", true, true, None::<&str>)?;
+    let quit = MenuItem::with_id(app, "quit", "Выход", true, None::<&str>)?;
+    let menu = Menu::with_items(app, &[&open, &notify, &PredefinedMenuItem::separator(app)?, &quit])?;
+    app.manage(TrayNotify(notify));
+
+    let mut tray = TrayIconBuilder::with_id("main")
+        .tooltip("YummyDesktop")
+        .menu(&menu)
+        .show_menu_on_left_click(false)
+        .on_menu_event(|app, e| match e.id.as_ref() {
+            "open" => show_main(app),
+            // Галочку меню переключает само; сообщаем фронту новое состояние.
+            "notify" => {
+                let on = app.state::<TrayNotify>().0.is_checked().unwrap_or(true);
+                let _ = app.emit_to("main", "tray-notify", on);
+            }
+            "quit" => app.exit(0),
+            _ => {}
+        })
+        .on_tray_icon_event(|tray, e| {
+            if let TrayIconEvent::Click { button: MouseButton::Left, button_state: MouseButtonState::Up, .. } = e {
+                show_main(tray.app_handle());
+            }
+        });
+    if let Some(icon) = app.default_window_icon() {
+        tray = tray.icon(icon.clone());
+    }
+    tray.build(app)?;
+    Ok(())
+}
+
+#[tauri::command]
+fn tray_set_notify(app: AppHandle, on: bool) {
+    let _ = app.state::<TrayNotify>().0.set_checked(on);
+}
+
+#[tauri::command]
+fn set_close_to_tray(on: bool) {
+    CLOSE_TO_TRAY.store(on, Ordering::Relaxed);
+}
+
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
     tauri::Builder::default()
-        .plugin(tauri_plugin_single_instance::init(|app, _args, _cwd| {
-            if let Some(w) = app.get_webview_window("main") {
-                let _ = w.unminimize();
-                let _ = w.set_focus();
-            }
-        }))
+        .plugin(tauri_plugin_single_instance::init(|app, _args, _cwd| show_main(app)))
         .plugin(tauri_plugin_window_state::Builder::default().build())
         .plugin(tauri_plugin_notification::init())
         .plugin(tauri_plugin_opener::init())
         .plugin(navigation_guard())
         .plugin(no_ads())
         .register_uri_scheme_protocol(CVH_SCHEME, |_ctx, req| cvh_protocol(req))
-        .invoke_handler(tauri::generate_handler![site_login_start, site_login_close])
+        .setup(|app| Ok(setup_tray(app.handle())?))
+        .on_window_event(|window, event| {
+            if let WindowEvent::CloseRequested { api, .. } = event {
+                if window.label() == "main" && CLOSE_TO_TRAY.load(Ordering::Relaxed) {
+                    api.prevent_close();
+                    let _ = window.hide();
+                    // Плеер в спрятанном окне продолжал бы играть — фронт его остановит.
+                    let _ = window.emit("tray-hidden", ());
+                }
+            }
+        })
+        .invoke_handler(tauri::generate_handler![
+            site_login_start,
+            site_login_close,
+            tray_set_notify,
+            set_close_to_tray
+        ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");
 }

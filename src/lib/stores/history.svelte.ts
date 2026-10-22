@@ -1,6 +1,8 @@
 // Локальная история просмотра: работает без аккаунта, переживает перезапуск.
+import { Api } from '../api/endpoints'
 import type { Posters } from '../api/types'
 import { load, save } from '../storage'
+import { auth } from './auth.svelte'
 
 export interface WatchEntry {
   animeId: number
@@ -90,12 +92,63 @@ export function recent(limit = 20): WatchEntry[] {
     .slice(0, limit)
 }
 
+/** Когда пользователь убрал тайтл из истории — чтобы синхронизация не вернула его обратно. */
+const removed = load<Record<number, number>>('history-removed', {})
+
 export function removeFromHistory(animeId: number) {
   delete history.last[animeId]
+  removed[animeId] = Date.now()
+  save('history-removed', removed)
   persist()
 }
 
 /** Формат, который ждёт /feed: `video_id:end_time:date`, последние 8. */
 export function feedWatches(): string[] {
   return recent(8).map((e) => `${e.videoId}:${Math.floor(e.time)}:${Math.floor(e.updatedAt / 1000)}`)
+}
+
+let syncedAt = 0
+
+/**
+ * Подтягивает последние просмотры аккаунта — с сайта и телефона. Серверная запись
+ * новее локальной заменяет её; озвучку и плеер страница тайтла найдёт по id серии.
+ */
+export async function syncHistory() {
+  if (!auth.profile || Date.now() - syncedAt < 60_000) return
+  syncedAt = Date.now()
+  const list = await Api.lastWatches(feedWatches()).catch(() => null)
+  if (!Array.isArray(list)) return
+  for (const w of list) {
+    if (!w?.anime_id || !w.video_id) continue
+    const at = (w.date || 0) * 1000
+    const local = history.last[w.anime_id]
+    if ((local && local.updatedAt >= at) || (removed[w.anime_id] ?? 0) >= at) continue
+    const same = local?.videoId === w.video_id
+    const episode = w.screenshot?.episode || w.ep_title?.match(/\d+(?:\.\d+)?/)?.[0] || (same ? local.episode : '')
+    history.last[w.anime_id] = {
+      animeId: w.anime_id,
+      url: w.anime_url,
+      title: w.title,
+      poster: w.poster,
+      videoId: w.video_id,
+      episode,
+      dubbing: same ? local.dubbing : '',
+      player: same ? local.player : '',
+      time: w.end_time || 0,
+      duration: w.duration || 0,
+      updatedAt: at,
+    }
+    if (episode && w.duration) {
+      const key = `${w.anime_id}:${episode}`
+      const prev = history.progress[key]
+      if (!prev || prev.time < w.end_time)
+        history.progress[key] = {
+          time: w.end_time,
+          duration: w.duration,
+          done: !!prev?.done || w.end_time / w.duration > 0.85,
+        }
+    }
+  }
+  prune()
+  persist()
 }

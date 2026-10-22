@@ -4,6 +4,7 @@
   import { route } from '../router.svelte'
   import { auth } from '../stores/auth.svelte'
   import { followsCount } from '../stores/follows.svelte'
+  import { notifs } from '../stores/notifications.svelte'
   import SearchBox from './SearchBox.svelte'
 
   interface NavItem {
@@ -50,7 +51,7 @@
   ]
 
   const section = $derived('/' + (route.path.split('/')[1] ?? ''))
-  const fresh = $derived(followsCount())
+  const fresh = $derived(followsCount() + (auth.profile ? notifs.unread : 0))
 </script>
 
 <header>
@@ -83,7 +84,12 @@
       <a class="tool" href="#/history" title="История просмотра" class:active={section === '/history'}>
         <History size={18} />
       </a>
-      <a class="tool" href="#/follows" title="Подписки на новые серии" class:active={section === '/follows'}>
+      <a
+        class="tool"
+        href={auth.profile ? '#/notifications' : '#/follows'}
+        title={auth.profile ? 'Уведомления и подписки' : 'Подписки на новые серии'}
+        class:active={section === '/follows' || section === '/notifications'}
+      >
         <Bell size={18} />
         {#if fresh}<span class="dot">{fresh}</span>{/if}
       </a>

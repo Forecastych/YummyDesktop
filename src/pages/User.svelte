@@ -3,7 +3,7 @@
   import { LogOut } from '@lucide/svelte'
   import { img } from '../lib/api/client'
   import { Api } from '../lib/api/endpoints'
-  import { LISTS, type FriendList, type ListedAnime, type ListId, type User, type UserStats } from '../lib/api/types'
+  import { LISTS, type FriendList, type ListedAnime, type ListId, type ListTime, type User, type UserStats } from '../lib/api/types'
   import AnimeCard from '../lib/components/AnimeCard.svelte'
   import CollectionCard from '../lib/components/CollectionCard.svelte'
   import Loader from '../lib/components/Loader.svelte'
@@ -23,6 +23,11 @@
   const user = query<User>((signal) => Api.user(id, { signal }))
   const stats = query<UserStats>((signal) => Api.userStats(id, { signal }))
   const lists = query<ListedAnime[]>((signal) => Api.userLists(id, { signal }))
+  const listSeconds = query<ListTime[]>((signal) => Api.userListTime(id, { signal }))
+  const listTime = $derived.by(() => {
+    const rows = (listSeconds.data ?? []).filter((r) => r.seconds > 0)
+    return { rows, max: Math.max(1, ...rows.map((r) => r.seconds)) }
+  })
 
   $effect(() => {
     if (user.data) setTitle(`${user.data.nickname} — YummyDesktop`)
@@ -219,6 +224,16 @@
           <div class="types-legend">
             {#each types as t, i (t.type.alias)}
               <span><i style:background={TYPE_COLORS[i % TYPE_COLORS.length]}></i>{t.type.name} {pct(t.share)}%</span>
+            {/each}
+          </div>
+        {/if}
+        {#if listTime.rows.length}
+          <h3 class="sub">Хронометраж по спискам</h3>
+          <div class="bars">
+            {#each listTime.rows as r (r.list.id)}
+              <a class="lbl" href={link(`/users/${id}?list=${r.list.id}`)}>{r.list.title}</a>
+              <span class="bar"><i style:width="{(r.seconds / listTime.max) * 100}%"></i></span>
+              <span class="num">{spent(r.seconds)}</span>
             {/each}
           </div>
         {/if}

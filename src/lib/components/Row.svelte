@@ -10,6 +10,7 @@
   let canRight = $state(true)
 
   function update() {
+    if (!track) return // поздний scroll после размонтирования
     canLeft = track.scrollLeft > 4
     canRight = track.scrollLeft + track.clientWidth < track.scrollWidth - 4
   }

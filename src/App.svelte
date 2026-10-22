@@ -10,6 +10,7 @@
   import Follows from './pages/Follows.svelte'
   import ForYou from './pages/ForYou.svelte'
   import History from './pages/History.svelte'
+  import Notifications from './pages/Notifications.svelte'
   import Home from './pages/Home.svelte'
   import Login from './pages/Login.svelte'
   import Post from './pages/Post.svelte'
@@ -20,6 +21,7 @@
   import Reviews from './pages/Reviews.svelte'
   import Schedule from './pages/Schedule.svelte'
   import Settings from './pages/Settings.svelte'
+  import Studio from './pages/Studio.svelte'
   import Top from './pages/Top.svelte'
   import User from './pages/User.svelte'
   import Video from './pages/Video.svelte'
@@ -38,6 +40,7 @@
     '/reviews': { page: Reviews, title: 'Рецензии' },
     '/history': { page: History, title: 'История' },
     '/follows': { page: Follows, title: 'Подписки' },
+    '/notifications': { page: Notifications, title: 'Уведомления' },
     '/settings': { page: Settings, title: 'Настройки' },
     '/login': { page: Login, title: 'Вход' },
     '/profile': { page: Profile, title: 'Профиль' },
@@ -49,6 +52,7 @@
   const video = $derived(match('/videos/:id', route.path))
   const user = $derived(match('/users/:id', route.path))
   const review = $derived(match('/reviews/:id', route.path))
+  const studio = $derived(match('/studio/:slug', route.path))
   const page = $derived(STATIC[route.path])
 
   $effect(() => {
@@ -94,6 +98,8 @@
       <User id={Number(user.id)} />
     {:else if review}
       <Review id={Number(review.id)} />
+    {:else if studio}
+      <Studio slug={studio.slug} />
     {:else if page}
       <page.page />
     {:else}

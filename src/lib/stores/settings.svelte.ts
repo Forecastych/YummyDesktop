@@ -1,3 +1,4 @@
+import { onNative, setCloseToTray, traySetNotify } from '../native'
 import { load, save } from '../storage'
 
 export interface Settings {
@@ -9,7 +10,10 @@ export interface Settings {
   autoSkipEnding: boolean
   autoNext: boolean
   resume: boolean
+  /** Системные уведомления: новые серии из «Подписок» и уведомления сайта. Дублируется галочкой в трее. */
   notifyEpisodes: boolean
+  /** Крестик прячет окно в трей — приложение продолжает работать и присылать уведомления. */
+  closeToTray: boolean
   /** Последняя выбранная озвучка — подставляется в новых тайтлах, если есть. */
   preferredDubbing: string
   preferredPlayer: string
@@ -26,6 +30,7 @@ const defaults: Settings = {
   autoNext: true,
   resume: true,
   notifyEpisodes: true,
+  closeToTray: true,
   preferredDubbing: '',
   preferredPlayer: '',
   dataSaver: false,
@@ -39,4 +44,12 @@ $effect.root(() => {
     save('settings', $state.snapshot(settings))
     document.documentElement.classList.toggle('reduce-motion', settings.reduceMotion)
   })
+  $effect(() => {
+    traySetNotify(settings.notifyEpisodes)
+  })
+  $effect(() => {
+    setCloseToTray(settings.closeToTray)
+  })
 })
+
+onNative<boolean>('tray-notify', (on) => (settings.notifyEpisodes = on))

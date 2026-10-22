@@ -19,7 +19,7 @@
   const version = __APP_VERSION__
 </script>
 
-{#snippet toggle(key: 'autoSkipOpening' | 'autoSkipEnding' | 'autoNext' | 'resume' | 'notifyEpisodes' | 'dataSaver' | 'reduceMotion', title: string, hint = '')}
+{#snippet toggle(key: 'autoSkipOpening' | 'autoSkipEnding' | 'autoNext' | 'resume' | 'notifyEpisodes' | 'closeToTray' | 'dataSaver' | 'reduceMotion', title: string, hint = '')}
   <label class="row">
     <span class="text">
       <span>{title}</span>
@@ -40,7 +40,8 @@
     {@render toggle('resume', 'Продолжать с места остановки')}
 
     <h2>Уведомления</h2>
-    {@render toggle('notifyEpisodes', 'Сообщать о новых сериях', 'Для тайтлов из «Подписок», пока приложение запущено.')}
+    {@render toggle('notifyEpisodes', 'Уведомления Windows', 'Новые серии из «Подписок» и уведомления сайта (ответы, лайки, друзья). То же, что галочка в меню трея.')}
+    {@render toggle('closeToTray', 'Сворачивать в трей при закрытии', 'Крестик прячет окно, приложение работает в фоне. Выйти — правой кнопкой по значку в трее.')}
 
     <h2>Интерфейс и трафик</h2>
     <label class="row">

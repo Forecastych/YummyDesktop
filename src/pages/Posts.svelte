@@ -2,19 +2,26 @@
   import { untrack } from 'svelte'
   import { img } from '../lib/api/client'
   import { Api } from '../lib/api/endpoints'
-  import type { PostShort } from '../lib/api/types'
+  import type { PostCategory, PostShort } from '../lib/api/types'
   import Loader from '../lib/components/Loader.svelte'
   import { date } from '../lib/format'
-  import { errorText } from '../lib/query.svelte'
+  import { errorText, query } from '../lib/query.svelte'
   import { go, route } from '../lib/router.svelte'
 
-  const CATS = [
-    { id: '', title: 'Все' },
+  // Пока категории не пришли (или сервер не ответил) — известный набор.
+  const FALLBACK = [
     { id: 'anime_news', title: 'Новости аниме' },
     { id: 'site_news', title: 'Новости сайта' },
     { id: 'articles', title: 'Статьи' },
     { id: 'interview', title: 'Интервью' },
   ]
+  const cats = query<PostCategory[]>(() => Api.postCategories())
+  const CATS = $derived([
+    { id: '', title: 'Все' },
+    ...(cats.data?.length
+      ? cats.data.map((c) => ({ id: c.uri, title: c.title.charAt(0).toUpperCase() + c.title.slice(1) }))
+      : FALLBACK),
+  ])
 
   const category = $derived(route.query.get('category') ?? '')
   let items: PostShort[] = $state([])

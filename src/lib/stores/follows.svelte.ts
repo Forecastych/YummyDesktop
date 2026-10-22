@@ -5,6 +5,7 @@ import type { AnimeShort, Posters } from '../api/types'
 import { notify } from '../native'
 import { load, save } from '../storage'
 import { auth } from './auth.svelte'
+import { rememberNotified, wasNotified } from './notified'
 import { settings } from './settings.svelte'
 
 export interface Follow {
@@ -78,11 +79,14 @@ async function check() {
     }
   }
   persist()
-  if (!settings.notifyEpisodes || !fresh.length) return
-  if (fresh.length === 1) {
-    await notify('Новая серия', `${fresh[0].title} — вышла ${fresh[0].aired}-я серия`)
+  // О серии подписанной озвучки уже мог сообщить сайт.
+  const shown = fresh.filter((f) => !wasNotified(f.title))
+  if (!settings.notifyEpisodes || !shown.length) return
+  for (const f of shown) rememberNotified(f.title)
+  if (shown.length === 1) {
+    await notify('Новая серия', `${shown[0].title} — вышла ${shown[0].aired}-я серия`)
   } else {
-    await notify(`Новые серии: ${fresh.length}`, fresh.map((f) => f.title).slice(0, 4).join(', '))
+    await notify(`Новые серии: ${shown.length}`, shown.map((f) => f.title).slice(0, 4).join(', '))
   }
 }
 

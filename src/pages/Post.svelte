@@ -5,6 +5,7 @@
   import AnimeCard from '../lib/components/AnimeCard.svelte'
   import Loader from '../lib/components/Loader.svelte'
   import Row from '../lib/components/Row.svelte'
+  import Votes from '../lib/components/Votes.svelte'
   import { compact, date } from '../lib/format'
   import { link } from '../lib/router.svelte'
   import { openExternal } from '../lib/native'
@@ -40,6 +41,9 @@
       </div>
       <!-- svelte-ignore a11y_click_events_have_key_events, a11y_no_static_element_interactions -->
       <div class="content" onclick={onClick}>{@html html}</div>
+      <div class="foot">
+        <Votes likes={p.likes} vote={(action) => Api.votePost(id, action)} />
+      </div>
     </article>
     {#if p.animes?.length}
       <section class="block">
@@ -125,5 +129,9 @@
   }
   .content :global(p) {
     margin: 0 0 12px;
+  }
+  .foot {
+    padding: 10px 18px 14px;
+    border-top: 1px solid var(--line);
   }
 </style>

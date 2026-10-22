@@ -1,6 +1,7 @@
 <script lang="ts">
   import { BellOff } from '@lucide/svelte'
   import AnimeCard from '../lib/components/AnimeCard.svelte'
+  import NotifTabs from '../lib/components/NotifTabs.svelte'
   import { follows, toggleFollow } from '../lib/stores/follows.svelte'
   import { settings } from '../lib/stores/settings.svelte'
   import { auth } from '../lib/stores/auth.svelte'
@@ -10,7 +11,7 @@
 
 <div class="container page">
   <section class="block">
-    <h1 class="block-title">Подписки на новые серии</h1>
+    <NotifTabs />
     <div class="bar">
       <label class="check">
         <input type="checkbox" bind:checked={settings.notifyEpisodes} />

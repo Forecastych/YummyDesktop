@@ -1,10 +1,10 @@
 <script lang="ts">
   import { untrack } from 'svelte'
-  import { SkipForward } from '@lucide/svelte'
+  import { Play, SkipForward } from '@lucide/svelte'
   import { Api } from '../api/endpoints'
   import type { AnimeShort, Video } from '../api/types'
   import { duration as fmt } from '../format'
-  import { cvhPlayerUrl, setFullscreen } from '../native'
+  import { cvhPlayerUrl, onNative, setFullscreen } from '../native'
   import { auth } from '../stores/auth.svelte'
   import { progressOf, setProgress, touch } from '../stores/history.svelte'
   import { settings } from '../stores/settings.svelte'
@@ -22,6 +22,22 @@
   let dur = $state(0)
   let toast = $state('')
   let countdown = $state(0)
+  /** Окно спрятали в трей — плеер выгружен, чтобы серия не играла в фоне. */
+  let stopped = $state(false)
+
+  $effect(() => {
+    const un = onNative('tray-hidden', () => {
+      stopped = true
+      cancelCountdown()
+    })
+    return () => void un.then((f) => f())
+  })
+
+  function resume() {
+    // Новый iframe начнёт с нуля — продолжение с места сработает как при открытии серии.
+    resumed = false
+    stopped = false
+  }
 
   // Плеер — только https: адрес приходит с сервера, javascript:/data: в iframe не пускаем.
   // Обёртку CVH с сайта (*.yummyani.me/iframeCVH.html) без VPN не открыть — подменяем своей.
@@ -179,6 +195,13 @@
 <svelte:document onfullscreenchange={onFullscreen} />
 
 <div class="player">
+  {#if stopped}
+    <button class="stopped" onclick={resume}>
+      <Play size={42} />
+      <span>Пауза: окно было свёрнуто в трей</span>
+      {#if time > 0}<small>Продолжить с {fmt(time)}</small>{/if}
+    </button>
+  {:else}
   {#key src}
     <iframe
       bind:this={frame}
@@ -190,6 +213,7 @@
       scrolling="no"
     ></iframe>
   {/key}
+  {/if}
 
   {#if bridge && inOpening && !settings.autoSkipOpening}
     <button class="skip" onclick={skipOpening}><SkipForward size={15} /> Пропустить опенинг</button>
@@ -221,6 +245,23 @@
 {/if}
 
 <style>
+  .stopped {
+    position: absolute;
+    inset: 0;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 10px;
+    width: 100%;
+    color: #fff;
+  }
+  .stopped small {
+    color: var(--muted);
+  }
+  .stopped:hover {
+    color: var(--accent);
+  }
   .player {
     position: relative;
     aspect-ratio: 16 / 9;

@@ -141,6 +141,7 @@ export interface Post extends PostShort {
   content: string
   views: number
   animes?: AnimeShort[]
+  likes?: Likes
 }
 
 export interface Feed {
@@ -295,6 +296,11 @@ export interface UserStats {
   types: { count: number; type: AnimeType }[]
 }
 
+export interface ListTime {
+  seconds: number
+  list: { id: number; href: string; title: string }
+}
+
 export type FriendList = 'friends' | 'followers' | 'following'
 
 export type Friend = UserShort & { last_online?: number; list?: string }
@@ -316,4 +322,38 @@ export interface Review {
   comments_count?: number
   author: UserShort
   anime?: AnimeShort
+}
+
+export interface Notification {
+  id: number
+  date: number
+  title_html: string
+  text_html: string
+  click_uri: string
+  type: string
+  sub_type: string
+  viewed: boolean
+  object_id: number
+}
+
+export interface LastWatch {
+  video_id: number
+  anime_id: number
+  anime_url: string
+  title: string
+  poster: Posters
+  date: number
+  end_time: number
+  duration: number
+  ep_title?: string
+  screenshot?: { episode?: string; time?: number; sizes?: { small?: string } }
+}
+
+export interface Trailer {
+  trailer_id: number
+  anime_id: number
+  iframe_url: string
+  dubbing: string
+  number: string
+  player: string
 }

@@ -1,9 +1,18 @@
 <script lang="ts">
   import { untrack } from 'svelte'
-  import { Bell, BellOff, Check, Eye, Heart, Star } from '@lucide/svelte'
+  import { Bell, BellOff, BellRing, Check, Clapperboard, Eye, Heart, Star } from '@lucide/svelte'
   import { clearCache, peek } from '../lib/api/client'
   import { Api } from '../lib/api/endpoints'
-  import { LISTS, type Anime, type AnimeShort, type Collection, type ListId, type UserRecommendation, type Video } from '../lib/api/types'
+  import {
+    LISTS,
+    type Anime,
+    type AnimeShort,
+    type Collection,
+    type ListId,
+    type Trailer,
+    type UserRecommendation,
+    type Video,
+  } from '../lib/api/types'
   import AddToCollection from '../lib/components/AddToCollection.svelte'
   import AnimeCard from '../lib/components/AnimeCard.svelte'
   import CollectionCard from '../lib/components/CollectionCard.svelte'
@@ -11,13 +20,18 @@
   import Loader from '../lib/components/Loader.svelte'
   import Player from '../lib/components/Player.svelte'
   import Poster from '../lib/components/Poster.svelte'
+  import ReviewCard from '../lib/components/ReviewCard.svelte'
   import Row from '../lib/components/Row.svelte'
-  import { MIN_USER_VOTES, RATE_COLORS, compact, date, rateColor, rating, userVotes } from '../lib/format'
+  import TrailerDialog, { type TrailerItem } from '../lib/components/TrailerDialog.svelte'
+  import Votes from '../lib/components/Votes.svelte'
+  import { MIN_USER_VOTES, RATE_COLORS, avgColor, compact, date, rateColor, rating, userVotes } from '../lib/format'
   import { setTitle } from '../lib/native'
+  import { pager } from '../lib/pager.svelte'
   import { prefetchAnime } from '../lib/prefetch'
   import { errorText, query } from '../lib/query.svelte'
   import { go, route } from '../lib/router.svelte'
   import { auth } from '../lib/stores/auth.svelte'
+  import { isDubSubscribed, toggleDubSub } from '../lib/stores/dubsubs.svelte'
   import { isFollowed, seen, toggleFollow } from '../lib/stores/follows.svelte'
   import { history, markDone, progressOf } from '../lib/stores/history.svelte'
   import { settings } from '../lib/stores/settings.svelte'
@@ -42,9 +56,69 @@
   })
   const watchedList = $derived((watched.data ?? []).filter((r) => userVotes(r.likes) >= MIN_USER_VOTES))
 
+  const LIST_TITLES: [number, string][] = [
+    [0, 'Смотрят'],
+    [1, 'В планах'],
+    [2, 'Просмотрели'],
+    [5, 'Отложили'],
+    [3, 'Бросили'],
+    [4, 'В любимых'],
+  ]
+  const rateStats = query(async (signal) => {
+    const id = q.data?.anime_id
+    if (!id) return null
+    const [rates, lists] = await Promise.all([Api.animeRates(id, { signal }), Api.animeListCounts(id, { signal })])
+    const m = new Map(rates.map((r) => [r.rating, r.count]))
+    const rows = Array.from({ length: 10 }, (_, i) => ({ rating: 10 - i, count: m.get(10 - i) ?? 0 }))
+    const byList = new Map(lists.map((l) => [l.list_id, l.count]))
+    return {
+      rows,
+      total: rows.reduce((s, r) => s + r.count, 0),
+      max: Math.max(1, ...rows.map((r) => r.count)),
+      lists: LIST_TITLES.map(([id, title]) => ({ title, count: byList.get(id) ?? 0 })),
+    }
+  })
+
   const colls = query<Collection[]>(async (signal) => {
     const id = q.data?.anime_id
     return id ? Api.animeCollections(id, { signal }) : []
+  })
+
+  const trailers = query<Trailer[]>(async (signal) => {
+    const id = q.data?.anime_id
+    return id ? Api.trailers(id, { signal }) : []
+  })
+  /** Во фрейм — только https: ссылку присылает сервер, протокол может быть любым. */
+  function httpsUrl(u: string) {
+    try {
+      const x = new URL(u.startsWith('//') ? `https:${u}` : u)
+      if (x.protocol !== 'https:') return ''
+      // Домен без cookie YouTube реже отдаёт «замок» во встроенном окне.
+      const yt = x.hostname.match(/(^|\.)youtube\.com$/) && x.pathname.match(/^\/embed\/([\w-]+)/)
+      return yt ? `https://www.youtube-nocookie.com/embed/${yt[1]}` : x.href
+    } catch {
+      return ''
+    }
+  }
+  const trailerItems = $derived<TrailerItem[]>(
+    (trailers.data ?? [])
+      .map((t, i) => ({
+        id: t.trailer_id || i,
+        src: httpsUrl(t.iframe_url || ''),
+        label: [t.number && `Трейлер ${t.number}`, t.dubbing].filter(Boolean).join(' · ') || `Трейлер ${i + 1}`,
+      }))
+      .filter((t) => t.src),
+  )
+  let showTrailer = $state(false)
+
+  const REVIEWS_PAGE = 10
+  const reviews = pager(
+    (offset) => (q.data ? Api.animeReviews(q.data.anime_id, offset, REVIEWS_PAGE) : Promise.resolve([])),
+    REVIEWS_PAGE,
+    (r) => r.review_id,
+  )
+  $effect(() => {
+    if (a?.anime_id) untrack(() => reviews.reset())
   })
 
   // ---------- озвучки, плееры, серии ----------
@@ -68,16 +142,25 @@
     return m
   })
 
-  /** Озвучки по популярности: сумма просмотров всех их серий во всех плеерах. */
-  const dubs = $derived.by(() => {
+  /** Просмотры озвучки: сумма по всем её сериям во всех плеерах. */
+  const dubViews = $derived.by(() => {
     const views = new Map<string, number>()
     for (const [d, byPlayer] of groups) {
       let sum = 0
       for (const list of byPlayer.values()) for (const v of list) sum += v.views || 0
       views.set(d, sum)
     }
-    return [...groups.keys()].sort((x, y) => views.get(y)! - views.get(x)!)
+    return views
   })
+  /** Озвучки по популярности. */
+  const dubs = $derived([...groups.keys()].sort((x, y) => dubViews.get(y)! - dubViews.get(x)!))
+  const totalViews = $derived([...dubViews.values()].reduce((n, v) => n + v, 0))
+  /** Доля выбора, как на сайте: «AniLibria — 34%». */
+  function dubLabel(d: string) {
+    const share = totalViews ? (dubViews.get(d)! / totalViews) * 100 : 0
+    if (!share) return d
+    return `${d} — ${share < 1 ? '<1' : Math.round(share)}%`
+  }
 
   let dubbing = $state('')
   let player = $state('')
@@ -89,16 +172,22 @@
     if (!anime) return
     untrack(() => {
       const last = history.last[anime.anime_id]
+      // Запись из истории аккаунта (смотрел на сайте) знает только id серии —
+      // озвучку и плеер берём из неё.
+      const lastVideo = last?.videoId ? anime.videos?.find((v) => v.video_id === last.videoId) : undefined
+      const lastEp = last?.episode || lastVideo?.number || ''
       dubbing =
-        [last?.dubbing, settings.preferredDubbing].find((d) => d && groups.has(d)) ?? dubs[0] ?? ''
-      pickPlayer(last?.player)
+        [last?.dubbing || lastVideo?.data.dubbing, settings.preferredDubbing].find((d) => d && groups.has(d)) ??
+        dubs[0] ??
+        ''
+      pickPlayer(last?.player || lastVideo?.data.player)
       const wanted = route.query.get('ep')
       const eps = episodes()
       let ep = wanted && eps.some((v) => v.number === wanted) ? wanted : ''
-      if (!ep && last) {
+      if (!ep && lastEp) {
         // Если прошлая серия досмотрена — сразу предлагаем следующую.
-        const i = eps.findIndex((v) => v.number === last.episode)
-        if (i >= 0) ep = progressOf(anime.anime_id, last.episode)?.done && eps[i + 1] ? eps[i + 1].number : last.episode
+        const i = eps.findIndex((v) => v.number === lastEp)
+        if (i >= 0) ep = progressOf(anime.anime_id, lastEp)?.done && eps[i + 1] ? eps[i + 1].number : lastEp
       }
       episode = ep || eps[0]?.number || ''
       seen(anime.anime_id, anime.episodes?.aired)
@@ -216,6 +305,19 @@
   let fullDesc = $state(false)
   const followed = $derived(!!a && isFollowed(a.anime_id))
 
+  // Подписка на озвучку — серверная: уведомление придёт и на сайт, и в приложение.
+  const dubSubbed = $derived(!!a && isDubSubscribed(a.anime_id, dubbing, player))
+  let dubSubError = $state('')
+  async function toggleDubSubscription() {
+    if (!a || !current) return
+    dubSubError = ''
+    try {
+      await toggleDubSub(a.anime_id, dubbing, player, current.video_id)
+    } catch (e) {
+      dubSubError = errorText(e)
+    }
+  }
+
   function nextDate(ts: number) {
     return ts ? date(ts, true) : ''
   }
@@ -235,6 +337,9 @@
             <button class="btn wide" class:accent={followed} onclick={() => toggleFollow(a)}>
               {#if followed}<BellOff size={15} /> Отписаться{:else}<Bell size={15} /> Следить за сериями{/if}
             </button>
+          {/if}
+          {#if trailerItems.length}
+            <button class="btn wide" onclick={() => (showTrailer = true)}><Clapperboard size={15} /> Трейлер</button>
           {/if}
           {#if auth.profile}
             <select
@@ -264,7 +369,7 @@
 
           <div class="score">
             {#if rating(a)}
-              <span class="big" style:color={rateColor(rating(a))}><Star size={20} fill="currentColor" /> {rating(a)?.toFixed(1)}</span>
+              <span class="big" style:color={avgColor(rating(a))}><Star size={20} fill="currentColor" /> {rating(a)?.toFixed(1)}</span>
               {#if typeof a.rating === 'object'}
                 <span class="muted">{compact(a.rating.counters)} голосов</span>
               {/if}
@@ -312,7 +417,15 @@
                 {#each a.genres as g (g.id)}<a href="#/catalog?genres={g.id}">{g.title}</a>{/each}
               </dd>
             {/if}
-            {#if a.studios?.length}<dt>Студия</dt><dd>{a.studios.map((s) => s.title).join(', ')}</dd>{/if}
+            {#if a.studios?.length}
+              <dt>Студия</dt>
+              <dd class="links">
+                {#each a.studios as s (s.id)}
+                  {@const slug = s.url?.split('/').filter(Boolean).pop()}
+                  {#if slug}<a href="#/studio/{slug}">{s.title}</a>{:else}<span>{s.title}</span>{/if}
+                {/each}
+              </dd>
+            {/if}
             {#if a.original}<dt>Первоисточник</dt><dd>{a.original}</dd>{/if}
             {#if a.creators?.length}
               <dt>Режиссёр</dt><dd>{a.creators.map((c) => c.title.trim()).join(', ')}</dd>
@@ -339,7 +452,7 @@
             <label>
               <span>Озвучка</span>
               <select class="select" value={dubbing} onchange={(e) => chooseDubbing(e.currentTarget.value)}>
-                {#each dubs as d (d)}<option value={d}>{d}</option>{/each}
+                {#each dubs as d (d)}<option value={d}>{dubLabel(d)}</option>{/each}
               </select>
             </label>
             <label>
@@ -348,6 +461,17 @@
                 {#each [...(groups.get(dubbing)?.keys() ?? [])] as p (p)}<option value={p}>{p}</option>{/each}
               </select>
             </label>
+            {#if current && auth.profile && a.anime_status?.alias !== 'released'}
+              <button
+                class="btn small"
+                class:accent={dubSubbed}
+                title="Сайт пришлёт уведомление, когда в этой озвучке выйдет новая серия"
+                onclick={toggleDubSubscription}
+              >
+                {#if dubSubbed}<BellRing size={14} /> Слежу за озвучкой{:else}<Bell size={14} /> Следить за озвучкой{/if}
+              </button>
+              {#if dubSubError}<span class="err">{dubSubError}</span>{/if}
+            {/if}
             {#if current}
               <button class="btn small mark" class:primary={isDone(current.number)} onclick={toggleDone}>
                 <Check size={14} />
@@ -400,6 +524,29 @@
       </section>
     {/if}
 
+    {#if rateStats.data && (rateStats.data.total || rateStats.data.lists.some((l) => l.count))}
+      {@const st = rateStats.data}
+      <section class="block">
+        <h2 class="block-title">Оценки и списки</h2>
+        <div class="stats">
+          {#if st.total}
+            <div class="bars">
+              {#each st.rows as r (r.rating)}
+                <span class="lbl">{r.rating}</span>
+                <span class="bar"><i style:width="{(r.count / st.max) * 100}%" style:background={RATE_COLORS[r.rating - 1]}></i></span>
+                <span class="num">{compact(r.count)}</span>
+              {/each}
+            </div>
+          {/if}
+          <ul class="list-counts">
+            {#each st.lists as l (l.title)}
+              <li><span class="muted">{l.title}</span><b>{compact(l.count)}</b></li>
+            {/each}
+          </ul>
+        </div>
+      </section>
+    {/if}
+
     {#if recs.data?.length}
       <section class="block">
         <h2 class="block-title">Похожие аниме</h2>
@@ -413,7 +560,12 @@
       <section class="block">
         <h2 class="block-title">Оценившие также смотрели</h2>
         <Row>
-          {#each watchedList as r (r.anime_id)}<AnimeCard anime={r} />{/each}
+          {#each watchedList as r (r.anime_id)}
+            <div class="rec">
+              <AnimeCard anime={r} />
+              <Votes compact likes={r.likes} vote={(action) => Api.voteRecommendation(a.anime_id, r.anime_id, action)} />
+            </div>
+          {/each}
         </Row>
       </section>
     {/if}
@@ -427,15 +579,90 @@
       </section>
     {/if}
 
+    {#if reviews.items.length}
+      <section class="block">
+        <h2 class="block-title">Рецензии</h2>
+        <div class="reviews">
+          {#each reviews.items as r (r.review_id)}<ReviewCard {r} showAnime={false} />{/each}
+        </div>
+        {#if !reviews.done}
+          <div class="more-reviews">
+            <button class="btn small" disabled={reviews.loading} onclick={reviews.more}>
+              {reviews.loading ? 'Загрузка…' : 'Показать ещё'}
+            </button>
+          </div>
+        {/if}
+      </section>
+    {/if}
+
     {#key a.anime_id}
       <Comments animeId={a.anime_id} total={a.comments_count} />
     {/key}
   </div>
+  {#if showTrailer}
+    <TrailerDialog title={a.title} items={trailerItems} onclose={() => (showTrailer = false)} />
+  {/if}
 {:else}
   <Loader error={q.error} retry={q.retry} />
 {/if}
 
 <style>
+  .rec {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+  }
+  .stats {
+    display: grid;
+    grid-template-columns: minmax(0, 2fr) minmax(0, 1fr);
+    gap: 10px 24px;
+    padding: 14px;
+  }
+  .stats .bars {
+    display: grid;
+    grid-template-columns: auto 1fr auto;
+    align-items: center;
+    gap: 6px 10px;
+    font-size: 12px;
+  }
+  .stats .lbl {
+    color: var(--text-2);
+  }
+  .stats .bar {
+    height: 8px;
+    border-radius: 4px;
+    background: var(--panel-3);
+    overflow: hidden;
+  }
+  .stats .bar i {
+    display: block;
+    height: 100%;
+    min-width: 2px;
+  }
+  .stats .num {
+    min-width: 32px;
+    text-align: right;
+    color: var(--muted);
+  }
+  .list-counts {
+    list-style: none;
+    margin: 0;
+    padding: 0;
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+    font-size: 13px;
+  }
+  .list-counts li {
+    display: flex;
+    justify-content: space-between;
+    gap: 10px;
+  }
+  @media (max-width: 700px) {
+    .stats {
+      grid-template-columns: 1fr;
+    }
+  }
   .page {
     display: flex;
     flex-direction: column;
@@ -613,6 +840,17 @@
     border-color: var(--green);
     color: #fff;
     font-weight: 600;
+  }
+  .reviews {
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+    padding: 14px;
+  }
+  .more-reviews {
+    display: flex;
+    justify-content: center;
+    padding: 0 14px 14px;
   }
   .order {
     margin: 0;

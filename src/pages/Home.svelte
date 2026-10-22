@@ -399,8 +399,9 @@
     color: var(--accent);
   }
   .t-time {
-    color: var(--yellow);
+    color: var(--muted);
     font-weight: 600;
+    font-variant-numeric: tabular-nums;
   }
   .t-title {
     white-space: nowrap;
