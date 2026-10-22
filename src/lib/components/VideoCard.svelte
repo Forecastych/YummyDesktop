@@ -9,25 +9,28 @@
   let failed = $derived.by(() => (void v.id, false))
 </script>
 
-<a class="vcard" href={link(`/videos/${v.id}`)} title={v.title}>
-  <div class="thumb" class:blur={v.has_spoiler}>
-    {#if v.previews?.small && !failed}
-      <img src={img(v.previews.small)} alt="" loading="lazy" decoding="async" onerror={() => (failed = true)} />
-    {/if}
-    <span class="play"><Play size={18} fill="currentColor" /></span>
-    <span class="cat">{v.category.title}</span>
-    {#if v.has_spoiler}<span class="spoiler">Спойлеры</span>{/if}
-  </div>
-  <div class="body">
+<!-- Ссылка на ролик и ссылка на блогера — соседи: вложенные <a> браузер разбирает неправильно. -->
+<div class="vcard">
+  <a class="main" href={link(`/videos/${v.id}`)} title={v.title}>
+    <div class="thumb" class:blur={v.has_spoiler}>
+      {#if v.previews?.small && !failed}
+        <img src={img(v.previews.small)} alt="" loading="lazy" decoding="async" onerror={() => (failed = true)} />
+      {/if}
+      <span class="play"><Play size={18} fill="currentColor" /></span>
+      <span class="cat">{v.category.title}</span>
+      {#if v.has_spoiler}<span class="spoiler">Спойлеры</span>{/if}
+    </div>
     <div class="title">{v.title}</div>
-    <div class="meta">
+  </a>
+  <div class="meta">
+    <a class="author" href={link(`/bloggers/${v.creator.id}`)} title={v.creator.nickname}>
       <img class="ava" src={img(v.creator.avatars?.small)} alt="" width="18" height="18" loading="lazy" />
       <span class="nick">{v.creator.nickname}</span>
-      <span class="stat"><Eye size={12} />{compact(v.views)}</span>
-      <span>{ago(v.publish_date)}</span>
-    </div>
+    </a>
+    <span class="stat"><Eye size={12} />{compact(v.views)}</span>
+    <span>{ago(v.publish_date)}</span>
   </div>
-</a>
+</div>
 
 <style>
   .vcard {
@@ -42,7 +45,7 @@
   .vcard:hover {
     background: var(--panel-3);
   }
-  .vcard:hover .title {
+  .main:hover .title {
     color: var(--accent);
   }
   .thumb {
@@ -57,7 +60,7 @@
     object-fit: cover;
     transition: transform 0.3s;
   }
-  .vcard:hover .thumb img {
+  .main:hover .thumb img {
     transform: scale(1.04);
   }
   /* Превью со спойлером размыто, как на сайте. */
@@ -77,7 +80,7 @@
     color: #fff;
     opacity: 0.85;
   }
-  .vcard:hover .play {
+  .main:hover .play {
     background: var(--accent);
     opacity: 1;
   }
@@ -102,10 +105,8 @@
     background: var(--accent);
     color: #fff;
   }
-  .body {
-    padding: 8px 10px 10px;
-  }
   .title {
+    margin: 8px 10px 0;
     font-size: 13px;
     line-height: 1.35;
     display: -webkit-box;
@@ -119,7 +120,7 @@
     display: flex;
     align-items: center;
     gap: 8px;
-    margin-top: 6px;
+    margin: 6px 10px 10px;
     font-size: 11px;
     color: var(--muted);
     white-space: nowrap;
@@ -130,6 +131,15 @@
     border-radius: 50%;
     flex: none;
     background: var(--panel-3);
+  }
+  .author {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    min-width: 0;
+  }
+  .author:hover .nick {
+    color: var(--accent);
   }
   .nick {
     min-width: 0;

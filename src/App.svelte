@@ -4,6 +4,7 @@
   import { isTauri, setFullscreen, setTitle } from './lib/native'
   import { back, match, route } from './lib/router.svelte'
   import Anime from './pages/Anime.svelte'
+  import Blogger from './pages/Blogger.svelte'
   import Catalog from './pages/Catalog.svelte'
   import Collection from './pages/Collection.svelte'
   import Collections from './pages/Collections.svelte'
@@ -49,10 +50,11 @@
   const video = $derived(match('/videos/:id', route.path))
   const user = $derived(match('/users/:id', route.path))
   const review = $derived(match('/reviews/:id', route.path))
+  const blogger = $derived(match('/bloggers/:id', route.path))
   const page = $derived(STATIC[route.path])
 
   $effect(() => {
-    if (anime || coll || video || user || review) return // заголовок ставит сама страница
+    if (anime || coll || video || user || review || blogger) return // заголовок ставит сама страница
     setTitle(page?.title ? `${page.title} — YummyDesktop` : 'YummyDesktop')
   })
 
@@ -94,6 +96,8 @@
       <User id={Number(user.id)} />
     {:else if review}
       <Review id={Number(review.id)} />
+    {:else if blogger}
+      <Blogger id={Number(blogger.id)} />
     {:else if page}
       <page.page />
     {:else}

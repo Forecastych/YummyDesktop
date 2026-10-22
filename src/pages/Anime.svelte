@@ -21,6 +21,9 @@
   import { isFollowed, seen, toggleFollow } from '../lib/stores/follows.svelte'
   import { history, markDone, progressOf } from '../lib/stores/history.svelte'
   import { settings } from '../lib/stores/settings.svelte'
+  import type { BloggerVideo } from '../lib/api/types'
+  import VideoCard from '../lib/components/VideoCard.svelte'
+  import { pager } from '../lib/pager.svelte'
 
   let { url }: { url: string } = $props()
 
@@ -45,6 +48,18 @@
   const colls = query<Collection[]>(async (signal) => {
     const id = q.data?.anime_id
     return id ? Api.animeCollections(id, { signal }) : []
+  })
+
+  // ---------- видео блогеров о тайтле ----------
+
+  const BLOGGER_PAGE = 12
+  const bloggerVideos = pager<BloggerVideo>(
+    (offset) => (a ? Api.animeBloggerVideos(a.anime_id, offset, BLOGGER_PAGE) : Promise.resolve([])),
+    BLOGGER_PAGE,
+    (v) => v.id,
+  )
+  $effect(() => {
+    if (a?.anime_id) untrack(() => bloggerVideos.reset())
   })
 
   // ---------- озвучки, плееры, серии ----------
@@ -427,6 +442,24 @@
       </section>
     {/if}
 
+    {#if bloggerVideos.items.length}
+      <section class="block">
+        <h2 class="block-title">Видео блогеров</h2>
+        <div class="bvideos">
+          {#each bloggerVideos.items as v (v.id)}<VideoCard {v} />{/each}
+        </div>
+        {#if bloggerVideos.error}
+          <Loader error={bloggerVideos.error} retry={bloggerVideos.more} />
+        {:else if !bloggerVideos.done}
+          <div class="bvideos-more">
+            <button class="btn small" disabled={bloggerVideos.loading} onclick={bloggerVideos.more}>
+              {bloggerVideos.loading ? 'Загрузка…' : 'Показать ещё'}
+            </button>
+          </div>
+        {/if}
+      </section>
+    {/if}
+
     {#key a.anime_id}
       <Comments animeId={a.anime_id} total={a.comments_count} />
     {/key}
@@ -465,6 +498,17 @@
     grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
     gap: 14px;
     padding: 14px;
+  }
+  .bvideos {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(240px, 1fr));
+    gap: 12px;
+    padding: 12px;
+  }
+  .bvideos-more {
+    display: flex;
+    justify-content: center;
+    padding: 0 12px 12px;
   }
   .wide {
     width: 100%;

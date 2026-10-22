@@ -1,16 +1,17 @@
 <script lang="ts">
-  import { ExternalLink, Eye, ThumbsUp } from '@lucide/svelte'
-  import { img } from '../lib/api/client'
+  import { ExternalLink, Eye, ThumbsDown, ThumbsUp } from '@lucide/svelte'
+  import { clearCache, img } from '../lib/api/client'
   import { Api } from '../lib/api/endpoints'
-  import type { BloggerVideo } from '../lib/api/types'
+  import type { BloggerVideo, Likes } from '../lib/api/types'
   import AnimeCard from '../lib/components/AnimeCard.svelte'
   import Loader from '../lib/components/Loader.svelte'
   import Row from '../lib/components/Row.svelte'
   import { compact, date } from '../lib/format'
   import { link } from '../lib/router.svelte'
   import { openExternal, setTitle } from '../lib/native'
-  import { query } from '../lib/query.svelte'
+  import { errorText, query } from '../lib/query.svelte'
   import { EMBED_SANDBOX, linkify, safeEmbed } from '../lib/sanitize'
+  import { auth } from '../lib/stores/auth.svelte'
 
   let { id }: { id: number } = $props()
   const video = query<BloggerVideo>((signal) => Api.bloggerVideo(id, { signal }))
@@ -26,6 +27,36 @@
     const m = embed?.match(/\/embed\/([\w-]{6,})/)
     return m ? `https://www.youtube.com/watch?v=${m[1]}` : null
   })
+
+  let likes = $derived<Likes>(video.data?.likes ?? { likes: 0, dislikes: 0, vote: 0 })
+  let voting = $state(false)
+  let voteError = $state<string | null>(null)
+
+  function recount(l: Likes, next: -1 | 0 | 1): Likes {
+    const n = { ...l, vote: next }
+    if (l.vote === 1) n.likes--
+    if (l.vote === -1) n.dislikes--
+    if (next === 1) n.likes++
+    if (next === -1) n.dislikes++
+    return n
+  }
+
+  async function vote(v: 1 | -1) {
+    if (voting) return
+    voting = true
+    voteError = null
+    try {
+      const next = likes.vote === v ? 0 : v
+      const r = await Api.voteBloggerVideo(id, next)
+      // Форму ответа без входа не проверить: если пришли не счётчики — считаем сами.
+      likes = typeof r?.likes === 'number' ? r : recount(likes, next)
+      clearCache(`/bloggers/video/${id}`)
+    } catch (e) {
+      voteError = errorText(e)
+    } finally {
+      voting = false
+    }
+  }
 
   $effect(() => {
     if (video.data) setTitle(`${video.data.title} — YummyDesktop`)
@@ -61,17 +92,26 @@
       <div class="info">
         <h1>{v.title}</h1>
         <div class="meta">
-          <a class="author" href={link(`/users/${v.creator.id}`)}>
+          <a class="author" href={link(`/bloggers/${v.creator.id}`)}>
             <img class="ava" src={img(v.creator.avatars?.small)} alt="" width="28" height="28" />
             <b>{v.creator.nickname}</b>
           </a>
           <span class="chip">{v.category.title}</span>
           <span>{date(v.publish_date, true)}</span>
           <span class="stat"><Eye size={13} />{compact(v.views)}</span>
-          {#if v.likes}<span class="stat"><ThumbsUp size={13} />{compact(v.likes.likes)}</span>{/if}
           {#if watchUrl}
             <button class="link yt" onclick={() => openExternal(watchUrl)}><ExternalLink size={13} /> Открыть на YouTube</button>
           {/if}
+        </div>
+        <div class="votes">
+          <button class="btn small" class:accent={likes.vote === 1} disabled={!auth.profile || voting} onclick={() => vote(1)}>
+            <ThumbsUp size={14} />{compact(likes.likes)}
+          </button>
+          <button class="btn small" class:accent={likes.vote === -1} disabled={!auth.profile || voting} onclick={() => vote(-1)}>
+            <ThumbsDown size={14} />{compact(likes.dislikes)}
+          </button>
+          {#if !auth.profile}<span class="muted">Оценивать видео можно после входа</span>{/if}
+          {#if voteError}<span class="err">{voteError}</span>{/if}
         </div>
         {#if desc.length}
           <div class="desc" class:open={descOpen}>
@@ -170,6 +210,20 @@
     align-items: center;
     gap: 4px;
     margin-left: auto;
+  }
+  .votes {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 8px;
+    margin-top: 12px;
+    font-size: 12px;
+  }
+  .votes .btn {
+    gap: 6px;
+  }
+  .err {
+    color: var(--accent);
   }
   .desc {
     margin-top: 14px;

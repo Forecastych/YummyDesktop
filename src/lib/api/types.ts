@@ -317,3 +317,14 @@ export interface Review {
   author: UserShort
   anime?: AnimeShort
 }
+
+// ---- видеоблогеры ----
+
+/** Ответ `/bloggers/{id}`. categories — общий список категорий сайта, а не только те, где у блогера есть ролики. */
+export interface Blogger extends UserShort {
+  /** Число подписчиков. */
+  subscriptions: number
+  is_subscribed: boolean
+  videos_count: number
+  categories: VideoCategory[]
+}
