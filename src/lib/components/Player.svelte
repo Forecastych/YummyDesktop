@@ -4,7 +4,7 @@
   import { Api } from '../api/endpoints'
   import type { AnimeShort, Video } from '../api/types'
   import { duration as fmt } from '../format'
-  import { setFullscreen } from '../native'
+  import { cvhPlayerUrl, setFullscreen } from '../native'
   import { auth } from '../stores/auth.svelte'
   import { progressOf, setProgress, touch } from '../stores/history.svelte'
   import { settings } from '../stores/settings.svelte'
@@ -24,12 +24,21 @@
   let countdown = $state(0)
 
   // Плеер — только https: адрес приходит с сервера, javascript:/data: в iframe не пускаем.
+  // Обёртку CVH с сайта (*.yummyani.me/iframeCVH.html) без VPN не открыть — подменяем своей.
   const src = $derived.by(() => {
     const u = video.iframe_url.startsWith('//') ? 'https:' + video.iframe_url : video.iframe_url
-    return u.startsWith('https://') ? u : 'about:blank'
+    if (!u.startsWith('https://')) return 'about:blank'
+    let url: URL
+    try {
+      url = new URL(u)
+    } catch {
+      return 'about:blank'
+    }
+    if (url.pathname === '/iframeCVH.html') return cvhPlayerUrl(url.search) ?? u
+    return u
   })
-  // Управлять снаружи умеем только Kodik: у него есть postMessage API.
-  const bridge = $derived(/kodik/i.test(src))
+  // Управлять снаружи умеем Kodik (его postMessage API) и CVH через свою обёртку.
+  const bridge = $derived(/kodik/i.test(src) ? 'kodik' : /^(http:\/\/cvh\.localhost|cvh:)/.test(src) ? 'cvh' : null)
   const op = $derived(video.skips?.opening)
   const ed = $derived(video.skips?.ending)
   const inOpening = $derived(!!op && op.length > 0 && time >= op.time && time < op.time + op.length - 1)
@@ -69,7 +78,8 @@
   })
 
   function send(method: string, extra: Record<string, unknown> = {}) {
-    frame?.contentWindow?.postMessage({ key: 'kodik_player_api', value: { method, ...extra } }, '*')
+    const msg = bridge === 'kodik' ? { key: 'kodik_player_api', value: { method, ...extra } } : { method, ...extra }
+    frame?.contentWindow?.postMessage(msg, '*')
   }
 
   function seek(seconds: number) {
@@ -141,14 +151,15 @@
     if (!frame || e.source !== frame.contentWindow) return
     const d = e.data as { key?: string; value?: unknown } | null
     if (!d || typeof d.key !== 'string') return
-    switch (d.key) {
-      case 'kodik_player_duration_update':
+    // Kodik шлёт kodik_player_*, обёртка CVH — те же события без префикса.
+    switch (d.key.replace(/^kodik_/, '')) {
+      case 'player_duration_update':
         dur = Number(d.value) || dur
         break
-      case 'kodik_player_time_update':
+      case 'player_time_update':
         onTime(Number(d.value) || 0)
         break
-      case 'kodik_player_video_ended':
+      case 'player_video_ended':
         if (dur > 0) {
           const crossed = setProgress(anime.anime_id, video.number, dur, dur)
           if (crossed && auth.profile) Api.markWatched(video.video_id, dur, dur).catch(() => {})
@@ -205,7 +216,7 @@
 {#if !bridge}
   <p class="hint">
     Плеер «{video.data.player.replace(/^Плеер\s+/i, '')}» не сообщает время просмотра — автопропуск и продолжение с места работают только в
-    Kodik. Серия всё равно отмечается в истории.
+    Kodik и CVH. Серия всё равно отмечается в истории.
   </p>
 {/if}
 

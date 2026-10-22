@@ -68,6 +68,17 @@
     return m
   })
 
+  /** Озвучки по популярности: сумма просмотров всех их серий во всех плеерах. */
+  const dubs = $derived.by(() => {
+    const views = new Map<string, number>()
+    for (const [d, byPlayer] of groups) {
+      let sum = 0
+      for (const list of byPlayer.values()) for (const v of list) sum += v.views || 0
+      views.set(d, sum)
+    }
+    return [...groups.keys()].sort((x, y) => views.get(y)! - views.get(x)!)
+  })
+
   let dubbing = $state('')
   let player = $state('')
   let episode = $state('')
@@ -78,7 +89,6 @@
     if (!anime) return
     untrack(() => {
       const last = history.last[anime.anime_id]
-      const dubs = [...groups.keys()]
       dubbing =
         [last?.dubbing, settings.preferredDubbing].find((d) => d && groups.has(d)) ?? dubs[0] ?? ''
       pickPlayer(last?.player)
@@ -329,7 +339,7 @@
             <label>
               <span>Озвучка</span>
               <select class="select" value={dubbing} onchange={(e) => chooseDubbing(e.currentTarget.value)}>
-                {#each [...groups.keys()] as d (d)}<option value={d}>{d}</option>{/each}
+                {#each dubs as d (d)}<option value={d}>{d}</option>{/each}
               </select>
             </label>
             <label>

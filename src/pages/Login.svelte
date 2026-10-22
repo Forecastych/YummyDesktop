@@ -1,8 +1,7 @@
 <script lang="ts">
   import { onDestroy } from 'svelte'
   import { Globe } from '@lucide/svelte'
-  import { isTauri, openExternal } from '../lib/native'
-  import { startSiteLogin } from '../lib/native'
+  import { closeSiteLogin, isTauri, openExternal, startSiteLogin } from '../lib/native'
   import { go } from '../lib/router.svelte'
   import { login, loginWithCandidates } from '../lib/stores/auth.svelte'
 
@@ -27,16 +26,27 @@
 
   // Сайт защищает вход hCaptcha, которая не работает на чужом домене.
   // Поэтому открываем настоящую страницу входа в отдельном окне и забираем токен из его кук.
+  // Окно присылает токены после каждой загрузки страницы; протухшие от прошлой сессии
+  // запоминаем и больше не проверяем, окно остаётся открытым, пока пользователь не войдёт.
+  const rejected = new Set<string>()
+
   async function viaSite() {
     error = ''
     try {
       unlisten?.()
       unlisten = await startSiteLogin(async (candidates) => {
+        const fresh = candidates.filter((c) => !rejected.has(c))
+        if (busy || !fresh.length) return
         busy = true
-        const ok = await loginWithCandidates(candidates)
+        const ok = await loginWithCandidates(fresh)
         busy = false
-        if (ok) go('/profile', true)
-        else error = 'Не удалось получить токен из окна входа. Попробуйте ещё раз.'
+        if (ok) {
+          closeSiteLogin().catch(() => {})
+          go('/profile', true)
+        } else {
+          fresh.forEach((c) => rejected.add(c))
+          error = 'Сессия на сайте устарела — войдите заново в открывшемся окне.'
+        }
       })
     } catch (e) {
       error = e instanceof Error ? e.message : String(e)

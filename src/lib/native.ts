@@ -40,6 +40,16 @@ export async function setTitle(title: string) {
   }
 }
 
+/**
+ * Адрес своей обёртки CVH (её отдаёт Rust со схемы cvh://). Tauri на Windows и Android
+ * обслуживает свои схемы как http://<схема>.localhost, на остальных — как <схема>://localhost.
+ */
+export function cvhPlayerUrl(search: string): string | null {
+  if (!isTauri) return null
+  const http = /Windows|Android/.test(navigator.userAgent)
+  return (http ? 'http://cvh.localhost/' : 'cvh://localhost/') + search
+}
+
 /** Открывает окно входа на самом сайте и ждёт токены из его кук. */
 export async function startSiteLogin(onTokens: (candidates: string[]) => void): Promise<() => void> {
   if (!isTauri) throw new Error('Доступно только в десктопной сборке')
@@ -47,4 +57,10 @@ export async function startSiteLogin(onTokens: (candidates: string[]) => void): 
   const un = await listen<{ candidates: string[] }>('site-login-token', (e) => onTokens(e.payload.candidates))
   await invoke('site_login_start')
   return un
+}
+
+export async function closeSiteLogin() {
+  if (!isTauri) return
+  const { invoke } = await import('@tauri-apps/api/core')
+  await invoke('site_login_close')
 }
