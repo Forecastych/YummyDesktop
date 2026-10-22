@@ -33,6 +33,7 @@
         { title: 'Для вас', href: '/for-you' },
         { title: 'Коллекции', href: '/collections' },
         { title: 'Мои коллекции', href: '/collections?tab=mine' },
+        { title: 'Рецензии', href: '/reviews' },
       ],
     },
     {

@@ -7,6 +7,7 @@
   import Loader from '../lib/components/Loader.svelte'
   import Row from '../lib/components/Row.svelte'
   import { compact, date } from '../lib/format'
+  import { link } from '../lib/router.svelte'
   import { openExternal, setTitle } from '../lib/native'
   import { query } from '../lib/query.svelte'
   import { EMBED_SANDBOX, linkify, safeEmbed } from '../lib/sanitize'
@@ -60,8 +61,10 @@
       <div class="info">
         <h1>{v.title}</h1>
         <div class="meta">
-          <img class="ava" src={img(v.creator.avatars?.small)} alt="" width="28" height="28" />
-          <b>{v.creator.nickname}</b>
+          <a class="author" href={link(`/users/${v.creator.id}`)}>
+            <img class="ava" src={img(v.creator.avatars?.small)} alt="" width="28" height="28" />
+            <b>{v.creator.nickname}</b>
+          </a>
           <span class="chip">{v.category.title}</span>
           <span>{date(v.publish_date, true)}</span>
           <span class="stat"><Eye size={13} />{compact(v.views)}</span>
@@ -193,5 +196,13 @@
   }
   .more:hover {
     color: var(--accent);
+  }
+  .author {
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+  }
+  .author:hover b {
+    text-decoration: underline;
   }
 </style>

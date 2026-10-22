@@ -4,6 +4,7 @@
   import { Api } from '../api/endpoints'
   import type { Comment } from '../api/types'
   import { ago, plural } from '../format'
+  import { link } from '../router.svelte'
   import { errorText } from '../query.svelte'
   import { commentHtml } from '../sanitize'
   import { auth } from '../stores/auth.svelte'
@@ -107,7 +108,7 @@
     <img class="ava" src={img(c.avatars?.small)} alt="" width="40" height="40" loading="lazy" />
     <div class="body">
       <div class="head">
-        <span class="name">{c.name}</span>
+        <a class="name" href={link(`/users/${c.user_id}`)}>{c.name}</a>
         {#if c.roles?.includes('moderator')}<span class="chip accent">модератор</span>{/if}
         <span class="time">{ago(c.time)}</span>
       </div>
@@ -269,6 +270,9 @@
   .name {
     font-weight: 600;
     color: var(--accent);
+  }
+  .name:hover {
+    text-decoration: underline;
   }
   .time {
     font-size: 12px;

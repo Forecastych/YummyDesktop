@@ -91,3 +91,32 @@ export function debounce<A extends unknown[]>(fn: (...a: A) => void, ms: number)
     t = setTimeout(() => fn(...a), ms)
   }
 }
+
+/** Время просмотра: «45 мин», «12 ч 5 мин», «601 ч». */
+export function spent(sec: number) {
+  const m = Math.round(sec / 60)
+  if (m < 60) return `${m} мин`
+  const h = Math.floor(m / 60)
+  return h >= 100 || m % 60 === 0 ? `${h} ч` : `${h} ч ${m % 60} мин`
+}
+
+/** Роли, которые сайт показывает плашкой. Остальные служебные — не выводим. */
+const ROLES: Record<string, string> = {
+  root: 'Администратор',
+  admin: 'Администратор',
+  moderatorPlus: 'Старший модератор',
+  moderator: 'Модератор',
+  reviewerHead: 'Глава рецензентов',
+  reviewer: 'Рецензент',
+  blogger: 'Блогер',
+  tester: 'Тестер',
+}
+
+export function roleTitles(roles: string[] | undefined) {
+  return [...new Set((roles ?? []).map((r) => ROLES[r]).filter(Boolean))]
+}
+
+/** «в сети» — если заходил последние 5 минут. */
+export function isOnline(lastOnline: number | undefined) {
+  return !!lastOnline && Date.now() / 1000 - lastOnline < 300
+}

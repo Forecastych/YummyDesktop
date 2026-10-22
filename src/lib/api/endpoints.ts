@@ -8,13 +8,19 @@ import type {
   CollectionInput,
   Comment,
   Feed,
+  Friend,
+  FriendList,
   GenreList,
   Likes,
+  ListedAnime,
   ListId,
   Post,
   PostShort,
   Profile,
+  Review,
+  User,
   UserRecommendation,
+  UserStats,
   Video,
 } from './types'
 
@@ -140,6 +146,47 @@ export const Api = {
 
   userList: (userId: number, list: ListId | 4, o: Sig = {}) =>
     api<AnimeShort[]>(`/users/${userId}/lists/${list}`, { ttl: MIN, ...o }),
+
+  // ---- пользователи ----
+
+  user: (id: number, o: Sig = {}) => api<User>(`/users/id${id}`, { ttl: MIN, ...o }),
+
+  /** Все списки разом: в каждом элементе есть user.list — так считаются вкладки. */
+  userLists: (id: number, o: Sig = {}) => api<ListedAnime[]>(`/users/${id}/lists`, { ttl: MIN, ...o }),
+
+  userStats: async (id: number, o: Sig = {}): Promise<UserStats> => {
+    const opt = { ttl: 10 * MIN, ...o }
+    const [genres, ratings, types] = await Promise.all([
+      api<UserStats['genres']>(`/users/${id}/stats/genres`, opt),
+      api<UserStats['ratings']>(`/users/${id}/stats/ratings`, opt),
+      api<UserStats['types']>(`/users/${id}/stats/types-v2`, opt),
+    ])
+    return { genres, ratings, types }
+  },
+
+  userFriends: (id: number, list: FriendList, offset = 0, o: Sig = {}) =>
+    api<Friend[]>(`/users/${id}/friends/${list}`, { query: { limit: 100, offset }, ttl: MIN, ...o }),
+
+  userReviews: (id: number, offset = 0, o: Sig = {}) =>
+    api<Review[]>(`/users/${id}/reviews`, { query: { limit: 20, offset }, ttl: MIN, ...o }),
+
+  userCollections: (id: number, offset = 0, o: Sig = {}) =>
+    api<Collection[]>(`/users/${id}/collections`, { query: { limit: 24, offset }, ttl: MIN, ...o }),
+
+  searchUsers: (nickname: string, o: Sig = {}) =>
+    api<{ items: User[] }>('/users', { query: { nickname, limit: 20 }, ttl: MIN, ...o }),
+
+  // ---- рецензии ----
+
+  reviews: (q: { sort?: 'new' | 'old' | 'top'; offset?: number; limit?: number }, o: Sig = {}) =>
+    api<Review[]>('/reviews', { query: { limit: 20, ...q }, ttl: 5 * MIN, ...o }),
+
+  review: (id: number, o: Sig = {}) => api<Review>(`/reviews/${id}`, { ttl: 5 * MIN, ...o }),
+
+  voteReview: (id: number, action: -1 | 0 | 1) =>
+    action
+      ? api<Likes>(`/reviews/${id}/vote`, { method: 'PUT', body: { action } })
+      : api<Likes>(`/reviews/${id}/vote`, { method: 'DELETE' }),
 
   setList: (id: number, list: ListId) =>
     api<unknown>(`/anime/${id}/list`, { method: 'PUT', body: { list, date: Math.floor(Date.now() / 1000) } }),

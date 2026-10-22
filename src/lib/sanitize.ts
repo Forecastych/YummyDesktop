@@ -46,6 +46,26 @@ export function linkify(text: string): { text: string; href?: string }[] {
   return out
 }
 
+export type RichPart = { text: string; href?: string; b?: boolean; i?: boolean; u?: boolean; s?: boolean }
+const BB: Record<string, 'b' | 'i' | 'u' | 's'> = { ж: 'b', b: 'b', к: 'i', i: 'i', п: 'u', u: 'u', з: 's', s: 's' }
+
+/** «О себе» на сайте: простые BB-коды ([ж], [к], [п], [з] и латинские) плюс ссылки — без {@html}. */
+export function richText(text: string): RichPart[] {
+  const out: RichPart[] = []
+  const on = { b: false, i: false, u: false, s: false }
+  let last = 0
+  const flush = (to: number) => {
+    if (to > last) for (const p of linkify(text.slice(last, to))) out.push({ ...p, ...on })
+  }
+  for (const m of text.matchAll(/\[(\/?)([жкпзbius])\]/gi)) {
+    flush(m.index)
+    on[BB[m[2].toLowerCase()]] = !m[1]
+    last = m.index + m[0].length
+  }
+  flush(text.length)
+  return out
+}
+
 export function internalLink(href: string): string | null {
   const m = href.match(/yumm?y-?ani(?:me)?\.(?:me|ru|tv)\/catalog\/item\/([\w-]+)/)
   return m ? `#/anime/${m[1]}` : null
@@ -127,4 +147,15 @@ export function commentHtml(text: string): string {
   return esc
     .replace(/\[(?:спойлер|spoiler)(?:=[^\]]*)?\]([\s\S]*?)\[\/(?:спойлер|spoiler)\]/gi, '<span class="spoiler" tabindex="0">$1</span>')
     .replace(/\n/g, '<br>')
+}
+
+/**
+ * Текст без разметки — для превью в карточках. DOMParser скриптов не запускает
+ * и картинок не грузит; спойлеры выбрасываем, чтобы не раскрыть их в превью.
+ */
+export function plainText(html: string): string {
+  const doc = new DOMParser().parseFromString(html, 'text/html')
+  doc.querySelectorAll('[class*="spoiler"], script, style').forEach((n) => n.remove())
+  doc.querySelectorAll('br, p, div, li, h1, h2, h3, h4').forEach((n) => n.after('\n'))
+  return (doc.body.textContent ?? '').replace(/[ \t]+\n/g, '\n').replace(/\n{3,}/g, '\n\n').trim()
 }

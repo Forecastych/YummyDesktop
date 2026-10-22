@@ -6,6 +6,7 @@
   import Loader from '../lib/components/Loader.svelte'
   import Row from '../lib/components/Row.svelte'
   import { compact, date } from '../lib/format'
+  import { link } from '../lib/router.svelte'
   import { openExternal } from '../lib/native'
   import { query } from '../lib/query.svelte'
   import { sanitize } from '../lib/sanitize'
@@ -29,8 +30,10 @@
     <article class="block">
       <h1 class="block-title">{p.title}</h1>
       <div class="meta">
-        <img src={img(p.user.avatars?.small)} alt="" width="28" height="28" />
-        <b>{p.user.nickname}</b>
+        <a class="author" href={link(`/users/${p.user.id}`)}>
+          <img src={img(p.user.avatars?.small)} alt="" width="28" height="28" />
+          <b>{p.user.nickname}</b>
+        </a>
         <span>{date(p.created_at, true)}</span>
         <span class="chip">{p.category.title}</span>
         {#if p.views}<span>{compact(p.views)} просмотров</span>{/if}
@@ -73,6 +76,14 @@
     font-size: 13px;
     color: var(--muted);
     border-bottom: 1px solid var(--line);
+  }
+  .author {
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+  }
+  .author:hover b {
+    text-decoration: underline;
   }
   .meta img {
     width: 28px;

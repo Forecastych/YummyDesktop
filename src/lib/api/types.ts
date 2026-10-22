@@ -264,3 +264,56 @@ export interface CollectionInput {
 
 /** Элемент «оценившие X смотрели»: голоса пользователей за связку. */
 export type UserRecommendation = AnimeShort & { likes?: Likes }
+
+// ---- пользователи ----
+
+export interface User extends UserShort {
+  about?: string
+  banner?: { cropped?: string; full?: string }
+  register_date: number
+  last_online: number
+  days_online?: number
+  banned?: boolean
+  sex?: 0 | 1 | 2
+  oldNicknames?: string[]
+  friend_status?: string | null
+  watches?: {
+    /** spent_time — секунды просмотра на сайте по типу аниме. */
+    sum: { alias: string; name: string; shortname: string; spent_time: number }[]
+    /** Последние 180 дней, по суткам. duration — секунды. */
+    history: { when: number; duration: number; ep_count: number }[]
+  }
+}
+
+/** Аниме из /users/{id}/lists — с отметкой, в каком оно списке. */
+export type ListedAnime = AnimeShort & { user?: { list?: UserListState; rating?: number } }
+
+export interface UserStats {
+  genres: (Ref & { count: number })[]
+  ratings: { rating: number; count: number }[]
+  /** count — секунды хронометража тайтлов этого типа в списках. */
+  types: { count: number; type: AnimeType }[]
+}
+
+export type FriendList = 'friends' | 'followers' | 'following'
+
+export type Friend = UserShort & { last_online?: number; list?: string }
+
+// ---- рецензии ----
+
+export interface Review {
+  review_id: number
+  anime_id: number
+  user_id: number
+  create_date: number
+  update_date?: number
+  rating: { average: number; category: Record<string, number> }
+  text_preview: string
+  text_html?: string
+  views: number
+  likes?: Likes
+  total_likes?: number
+  comments_count?: number
+  author: UserShort
+  anime?: AnimeShort
+}

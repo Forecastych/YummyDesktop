@@ -16,9 +16,12 @@
   import Posts from './pages/Posts.svelte'
   import Profile from './pages/Profile.svelte'
   import Random from './pages/Random.svelte'
+  import Review from './pages/Review.svelte'
+  import Reviews from './pages/Reviews.svelte'
   import Schedule from './pages/Schedule.svelte'
   import Settings from './pages/Settings.svelte'
   import Top from './pages/Top.svelte'
+  import User from './pages/User.svelte'
   import Video from './pages/Video.svelte'
   import Videos from './pages/Videos.svelte'
 
@@ -32,6 +35,7 @@
     '/schedule': { page: Schedule, title: 'Расписание' },
     '/posts': { page: Posts, title: 'Новости' },
     '/videos': { page: Videos, title: 'Видео' },
+    '/reviews': { page: Reviews, title: 'Рецензии' },
     '/history': { page: History, title: 'История' },
     '/follows': { page: Follows, title: 'Подписки' },
     '/settings': { page: Settings, title: 'Настройки' },
@@ -43,10 +47,12 @@
   const post = $derived(match('/posts/:id', route.path))
   const coll = $derived(match('/collections/:id', route.path))
   const video = $derived(match('/videos/:id', route.path))
+  const user = $derived(match('/users/:id', route.path))
+  const review = $derived(match('/reviews/:id', route.path))
   const page = $derived(STATIC[route.path])
 
   $effect(() => {
-    if (anime || coll || video) return // заголовок ставит сама страница
+    if (anime || coll || video || user || review) return // заголовок ставит сама страница
     setTitle(page?.title ? `${page.title} — YummyDesktop` : 'YummyDesktop')
   })
 
@@ -84,6 +90,10 @@
       <Collection id={Number(coll.id)} />
     {:else if video}
       <Video id={Number(video.id)} />
+    {:else if user}
+      <User id={Number(user.id)} />
+    {:else if review}
+      <Review id={Number(review.id)} />
     {:else if page}
       <page.page />
     {:else}

@@ -9,7 +9,7 @@
   import { compact, date } from '../lib/format'
   import { setTitle } from '../lib/native'
   import { errorText, query } from '../lib/query.svelte'
-  import { go } from '../lib/router.svelte'
+  import { go, link } from '../lib/router.svelte'
   import { auth } from '../lib/stores/auth.svelte'
   import { deleteCollection, editCollection, isOwner, removeAnimes, vote } from '../lib/stores/collections.svelte'
 
@@ -95,10 +95,10 @@
           {#if c.description}<p class="desc">{c.description}</p>{/if}
           <div class="meta">
             {#if c.owner}
-              <span class="owner">
+              <a class="owner" href={link(`/users/${c.owner.id}`)}>
                 {#if c.owner.avatars?.small}<img src={img(c.owner.avatars.small)} alt="" width="22" height="22" />{/if}
                 {c.owner.nickname}
-              </span>
+              </a>
             {/if}
             {#if c.create_date}<span class="muted">{date(c.create_date)}</span>{/if}
             {#if c.views}<span class="muted stat"><Eye size={13} />{compact(c.views)}</span>{/if}
