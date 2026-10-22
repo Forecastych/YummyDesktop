@@ -221,7 +221,19 @@ export interface Profile {
   about?: string
   notifications?: { count: number }
   messages?: { unread_count: number }
+  ids?: LinkedIds
 }
+
+/** Привязанные аккаунты. Discord в Swagger не описан, но приходит как { id: string }. */
+export interface LinkedIds {
+  shikimori?: { id: number; nickname: string }
+  vk?: number
+  tg_nickname?: string
+  discord?: { id: string }
+}
+
+/** Сегмент пути в DELETE /profile/login/{service}. */
+export type LinkedService = 'shiki' | 'vk' | 'tg' | 'discord'
 
 /** 0 смотрю, 1 в планах, 2 просмотрено, 3 брошено, 5 отложено. */
 export type ListId = 0 | 1 | 2 | 3 | 5

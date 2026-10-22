@@ -20,6 +20,10 @@ export interface RequestOptions {
   method?: 'GET' | 'POST' | 'PUT' | 'PATCH' | 'DELETE'
   query?: Query
   body?: unknown
+  /** Сырые байты (аватар, баннер): уходят как есть, без JSON. */
+  raw?: Blob
+  /** 401 здесь — не потеря сессии (например, неверный текущий пароль), не разлогинивать. */
+  keepAuth?: boolean
   /** Сколько мс держать GET-ответ в памяти. 0 — не кэшировать. */
   ttl?: number
   /** Ключ для дискового кэша (stale-while-revalidate между запусками). */
@@ -92,7 +96,7 @@ function cacheKey(path: string, query?: Query) {
   return `${settings.lang}|${authToken ? 'u' : 'g'}|${buildUrl(path, query)}`
 }
 
-function headers(hasBody: boolean): HeadersInit {
+function headers(hasBody: boolean): Record<string, string> {
   const h: Record<string, string> = {
     Accept: 'application/json, image/avif, image/webp',
     Lang: settings.lang,
@@ -107,10 +111,13 @@ function headers(hasBody: boolean): HeadersInit {
 async function send<T>(path: string, opts: RequestOptions): Promise<T> {
   const method = opts.method ?? 'GET'
   const hasBody = opts.body !== undefined
+  const h = headers(hasBody)
+  // Картинки API принимает телом запроса, с тем же Content-Type, что ставит сайт.
+  if (opts.raw) h['Content-Type'] = 'data/raw'
   const res = await fetch(buildUrl(path, opts.query), {
     method,
-    headers: headers(hasBody),
-    body: hasBody ? JSON.stringify(opts.body) : undefined,
+    headers: h,
+    body: opts.raw ?? (hasBody ? JSON.stringify(opts.body) : undefined),
     signal: opts.signal,
   })
   let data: any = null
@@ -123,7 +130,7 @@ async function send<T>(path: string, opts: RequestOptions): Promise<T> {
     }
   }
   if (!res.ok || (data && data.error)) {
-    if (res.status === 401 && authToken) onUnauthorized?.()
+    if (res.status === 401 && authToken && !opts.keepAuth) onUnauthorized?.()
     const msg = data?.error || res.statusText || 'Ошибка сети'
     throw new ApiError(res.status, String(msg), data?.error_code)
   }

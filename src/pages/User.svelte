@@ -1,12 +1,13 @@
 <script lang="ts">
   import { untrack } from 'svelte'
-  import { LogOut } from '@lucide/svelte'
-  import { img } from '../lib/api/client'
+  import { LogOut, Pencil } from '@lucide/svelte'
+  import { clearCache, img } from '../lib/api/client'
   import { Api } from '../lib/api/endpoints'
   import { LISTS, type FriendList, type ListedAnime, type ListId, type ListTime, type User, type UserStats } from '../lib/api/types'
   import AnimeCard from '../lib/components/AnimeCard.svelte'
   import CollectionCard from '../lib/components/CollectionCard.svelte'
   import Loader from '../lib/components/Loader.svelte'
+  import ProfileEdit from '../lib/components/ProfileEdit.svelte'
   import More from '../lib/components/More.svelte'
   import ReviewCard from '../lib/components/ReviewCard.svelte'
   import { ago, date, isOnline, plural, RATE_COLORS, roleTitles, spent } from '../lib/format'
@@ -32,6 +33,15 @@
   $effect(() => {
     if (user.data) setTitle(`${user.data.nickname} — YummyDesktop`)
   })
+
+  // ---- редактирование своего профиля ----
+
+  let editing = $state(false)
+
+  function profileChanged() {
+    clearCache(`/users/id${id}`)
+    user.retry()
+  }
 
   // ---- вкладки: состояние в адресе, чтобы «назад» возвращал туда же ----
 
@@ -165,6 +175,9 @@
           </div>
           {#if u.oldNicknames?.length}<div class="old">Ранее: {u.oldNicknames.join(', ')}</div>{/if}
         </div>
+        {#if own}
+          <button class="btn small" onclick={() => (editing = true)}><Pencil size={14} /> Редактировать</button>
+        {/if}
         {#if own}
           <button class="btn small" onclick={onlogout}><LogOut size={14} /> Выйти</button>
         {/if}
@@ -341,6 +354,10 @@
   </div>
 {:else}
   <Loader error={user.error} retry={user.retry} />
+{/if}
+
+{#if own && editing}
+  <ProfileEdit onchanged={profileChanged} onclose={() => (editing = false)} />
 {/if}
 
 <style>

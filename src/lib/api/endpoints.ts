@@ -14,6 +14,7 @@ import type {
   GenreList,
   LastWatch,
   Likes,
+  LinkedService,
   ListedAnime,
   ListId,
   ListTime,
@@ -224,6 +225,28 @@ export const Api = {
   logout: () => api<unknown>('/profile/logout', { method: 'POST' }),
 
   profile: () => api<Profile>('/profile', { ttl: 0 }),
+
+  // ---- редактирование профиля ----
+
+  /** jpeg/png/webp, 250×250, до 2 МБ. */
+  setAvatar: (userId: number, file: Blob) => api<boolean>(`/users/${userId}/avatar`, { method: 'PUT', raw: file }),
+
+  removeAvatar: (userId: number) => api<boolean>(`/users/${userId}/avatar`, { method: 'DELETE' }),
+
+  /** jpeg/png/webp, 1370×170, до 4 МБ. */
+  setBanner: (userId: number, file: Blob) => api<boolean>(`/users/${userId}/banner`, { method: 'PUT', raw: file }),
+
+  removeBanner: (userId: number) => api<boolean>(`/users/${userId}/banner`, { method: 'DELETE' }),
+
+  /** Сервер отвечает новым токеном. */
+  changePassword: (old_password: string, new_password: string) =>
+    api<{ success: boolean; token: string }>('/profile/password', {
+      method: 'PATCH',
+      body: { old_password, new_password, need_json: true },
+      keepAuth: true,
+    }),
+
+  unlinkAccount: (service: LinkedService) => api<unknown>(`/profile/login/${service}`, { method: 'DELETE' }),
 
   userList: (userId: number, list: ListId | 4, o: Sig = {}) =>
     api<AnimeShort[]>(`/users/${userId}/lists/${list}`, { ttl: MIN, ...o }),
