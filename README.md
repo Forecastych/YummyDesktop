@@ -65,7 +65,7 @@ VITE_YUMMY_APP_TOKEN=ваш_токен
 ## Устройство
 
 - **Tauri 2** (Rust + системный WebView2): установщик в несколько мегабайт вместо сотни у Electron.
-- **Svelte 5 + TypeScript + Vite.** Без UI-фреймворков, весь JS около 150 КБ.
+- **Svelte 5 + TypeScript + Vite.** Без UI-фреймворков, весь JS около 200 КБ (около 65 КБ в gzip).
 - `src/lib/api`: клиент API (дедупликация запросов, LRU в памяти, stale-while-revalidate на диске).
 - `src/lib/stores`: настройки, авторизация, история, подписки.
 - `src/pages`: страницы, `src/lib/components`: шапка, карточки, плеер, комментарии.
