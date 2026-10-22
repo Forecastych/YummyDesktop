@@ -79,3 +79,17 @@ export async function logout() {
   await Api.logout().catch(() => {})
   logoutLocal()
 }
+
+export async function reloadProfile() {
+  auth.profile = await Api.profile()
+}
+
+/** После смены пароля сервер выдаёт новый токен — переходим на него. */
+export async function changePassword(oldPassword: string, newPassword: string) {
+  const r = await Api.changePassword(oldPassword, newPassword)
+  if (r && r.success === false) throw new ApiError(400, 'Пароль не изменён')
+  if (r?.token) {
+    setAuthToken(r.token)
+    save('tokenAt', Date.now())
+  }
+}
