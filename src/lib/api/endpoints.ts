@@ -2,6 +2,7 @@ import { api, type RequestOptions } from './client'
 import type {
   Anime,
   AnimeShort,
+  Blogger,
   BloggerVideo,
   Catalog,
   Collection,
@@ -159,6 +160,32 @@ export const Api = {
     api<BloggerVideo[]>('/bloggers/video', { query: { limit: 30, ...q }, ttl: 5 * MIN, ...o }),
 
   bloggerVideo: (id: number, o: Sig = {}) => api<BloggerVideo>(`/bloggers/video/${id}`, { ttl: 10 * MIN, ...o }),
+
+  // ---- блогеры: страница, подписка, лайки роликов ----
+
+  blogger: (id: number, o: Sig = {}) => api<Blogger>(`/bloggers/${id}`, { ttl: MIN, ...o }),
+
+  /** Ролики одного блогера — тот же список, что `/bloggers/video`, с фильтром blogger_id. */
+  bloggerVideosOf: (
+    bloggerId: number,
+    q: { category?: string; sort?: 'new' | 'old' | 'top'; offset?: number; limit?: number },
+    o: Sig = {},
+  ) => api<BloggerVideo[]>('/bloggers/video', { query: { limit: 30, blogger_id: bloggerId, ...q }, ttl: 5 * MIN, ...o }),
+
+  /** Ролики блогеров о тайтле (сортировки сервер не принимает). */
+  animeBloggerVideos: (animeId: number, offset = 0, limit = 12, o: Sig = {}) =>
+    api<BloggerVideo[]>(`/anime/${animeId}/bloggervideos`, { query: { offset, limit }, ttl: 10 * MIN, ...o }),
+
+  /** Так подписывается сайт: PUT с { subscribe: true }, отписка — DELETE. */
+  subscribeBlogger: (id: number, on: boolean) =>
+    on
+      ? api<unknown>(`/bloggers/${id}/subscribe`, { method: 'PUT', body: { subscribe: true } })
+      : api<unknown>(`/bloggers/${id}/subscribe`, { method: 'DELETE' }),
+
+  voteBloggerVideo: (id: number, action: 1 | -1 | 0) =>
+    action
+      ? api<Likes>(`/bloggers/video/${id}/vote`, { method: 'PUT', body: { action } })
+      : api<Likes>(`/bloggers/video/${id}/vote`, { method: 'DELETE' }),
 
   // ---- коллекции ----
 
