@@ -1,4 +1,5 @@
 <script lang="ts">
+  import { ImageOff } from '@lucide/svelte'
   import { img } from '../api/client'
   import type { Posters } from '../api/types'
   import { settings } from '../stores/settings.svelte'
@@ -12,7 +13,9 @@
   }
   let { poster, alt, sizes = '180px', eager = false }: Props = $props()
 
-  let loaded = $state(false)
+  // Сбрасываются при смене постера: карточку могут переиспользовать под другой тайтл.
+  let loaded = $derived.by(() => (void poster, false))
+  let failed = $derived.by(() => (void poster, false))
 
   // Браузер сам выберет файл под реальную ширину и плотность экрана.
   const srcset = $derived.by(() => {
@@ -37,7 +40,10 @@
 </script>
 
 <div class="poster" class:loaded>
-  {#if src}
+  {#if !src || failed}
+    <!-- Постер не пришёл или не загрузился — серая плашка вместо битой картинки. -->
+    <span class="ph" aria-hidden="true"><ImageOff size={28} /></span>
+  {:else}
     <img
       {src}
       {srcset}
@@ -49,7 +55,7 @@
       decoding="async"
       fetchpriority={eager ? 'high' : 'auto'}
       onload={() => (loaded = true)}
-      onerror={() => (loaded = true)}
+      onerror={() => (failed = true)}
     />
   {/if}
 </div>
@@ -70,5 +76,12 @@
   }
   .loaded img {
     opacity: 1;
+  }
+  .ph {
+    position: absolute;
+    inset: 0;
+    display: grid;
+    place-items: center;
+    color: var(--line-2);
   }
 </style>

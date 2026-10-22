@@ -1,6 +1,8 @@
 use serde::Serialize;
 use tauri::webview::PageLoadEvent;
-use tauri::{AppHandle, Emitter, Manager, Url, WebviewUrl, WebviewWindowBuilder};
+use tauri::plugin::{Builder as PluginBuilder, TauriPlugin};
+use tauri::{AppHandle, Emitter, Manager, Runtime, Url, WebviewUrl, WebviewWindowBuilder};
+use tauri_plugin_opener::OpenerExt;
 
 const SITE_LOGIN_LABEL: &str = "site-login";
 const SITE_LOGIN_URL: &str = "https://old.yummyani.me/login";
@@ -75,6 +77,32 @@ async fn site_login_start(app: AppHandle) -> Result<(), String> {
     Ok(())
 }
 
+/// Своё ли это содержимое: собранный фронт или dev-сервер Vite.
+fn is_app_url(url: &Url) -> bool {
+    match url.scheme() {
+        "tauri" | "about" | "data" | "blob" => true,
+        "http" | "https" => matches!(url.host_str(), Some("tauri.localhost" | "localhost" | "127.0.0.1")),
+        _ => false,
+    }
+}
+
+/// Главное окно никогда не уходит на чужие страницы: внешние ссылки, которые
+/// фронт почему-то не перехватил, открываются в системном браузере.
+/// Окно входа через сайт (site-login) живёт на сайте и сюда не попадает.
+fn navigation_guard<R: Runtime>() -> TauriPlugin<R> {
+    PluginBuilder::new("nav-guard")
+        .on_navigation(|webview, url| {
+            if webview.label() != "main" || is_app_url(url) {
+                return true;
+            }
+            if matches!(url.scheme(), "http" | "https" | "mailto") {
+                let _ = webview.app_handle().opener().open_url(url.as_str(), None::<&str>);
+            }
+            false
+        })
+        .build()
+}
+
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
     tauri::Builder::default()
@@ -87,6 +115,7 @@ pub fn run() {
         .plugin(tauri_plugin_window_state::Builder::default().build())
         .plugin(tauri_plugin_notification::init())
         .plugin(tauri_plugin_opener::init())
+        .plugin(navigation_guard())
         .invoke_handler(tauri::generate_handler![site_login_start])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

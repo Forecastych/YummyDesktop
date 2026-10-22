@@ -23,7 +23,11 @@
   let toast = $state('')
   let countdown = $state(0)
 
-  const src = $derived(video.iframe_url.startsWith('//') ? 'https:' + video.iframe_url : video.iframe_url)
+  // Плеер — только https: адрес приходит с сервера, javascript:/data: в iframe не пускаем.
+  const src = $derived.by(() => {
+    const u = video.iframe_url.startsWith('//') ? 'https:' + video.iframe_url : video.iframe_url
+    return u.startsWith('https://') ? u : 'about:blank'
+  })
   // Управлять снаружи умеем только Kodik: у него есть postMessage API.
   const bridge = $derived(/kodik/i.test(src))
   const op = $derived(video.skips?.opening)

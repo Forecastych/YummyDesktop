@@ -1,24 +1,23 @@
 <script lang="ts">
-  let { error = null, retry }: { error?: string | null; retry?: () => void } = $props()
+  import ErrorBlock from './ErrorBlock.svelte'
+
+  let { error = null, retry, small = false }: { error?: string | null; retry?: () => void; small?: boolean } = $props()
 </script>
 
 {#if error}
-  <div class="state">
-    <p>{error}</p>
-    {#if retry}<button class="btn small" onclick={retry}>Повторить</button>{/if}
-  </div>
+  <ErrorBlock message={error} {retry} {small} />
 {:else}
-  <div class="state" aria-busy="true"><span class="spin"></span></div>
+  <div class="state" class:small aria-busy="true"><span class="spin"></span></div>
 {/if}
 
 <style>
   .state {
     display: grid;
     place-items: center;
-    gap: 10px;
     padding: 48px 16px;
-    color: var(--muted);
-    text-align: center;
+  }
+  .state.small {
+    padding: 24px 12px;
   }
   .spin {
     width: 28px;

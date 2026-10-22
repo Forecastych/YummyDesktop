@@ -1,4 +1,5 @@
 <script lang="ts">
+  import Footer from './lib/components/Footer.svelte'
   import Header from './lib/components/Header.svelte'
   import { isTauri, setFullscreen, setTitle } from './lib/native'
   import { back, match, route } from './lib/router.svelte'
@@ -18,6 +19,8 @@
   import Schedule from './pages/Schedule.svelte'
   import Settings from './pages/Settings.svelte'
   import Top from './pages/Top.svelte'
+  import Video from './pages/Video.svelte'
+  import Videos from './pages/Videos.svelte'
 
   const STATIC: Record<string, { page: typeof Home; title?: string }> = {
     '/': { page: Home },
@@ -28,6 +31,7 @@
     '/collections': { page: Collections, title: 'Коллекции' },
     '/schedule': { page: Schedule, title: 'Расписание' },
     '/posts': { page: Posts, title: 'Новости' },
+    '/videos': { page: Videos, title: 'Видео' },
     '/history': { page: History, title: 'История' },
     '/follows': { page: Follows, title: 'Подписки' },
     '/settings': { page: Settings, title: 'Настройки' },
@@ -38,10 +42,11 @@
   const anime = $derived(match('/anime/:url', route.path))
   const post = $derived(match('/posts/:id', route.path))
   const coll = $derived(match('/collections/:id', route.path))
+  const video = $derived(match('/videos/:id', route.path))
   const page = $derived(STATIC[route.path])
 
   $effect(() => {
-    if (anime || coll) return // заголовок ставит сама страница
+    if (anime || coll || video) return // заголовок ставит сама страница
     setTitle(page?.title ? `${page.title} — YummyDesktop` : 'YummyDesktop')
   })
 
@@ -77,6 +82,8 @@
       <Post id={Number(post.id)} />
     {:else if coll}
       <Collection id={Number(coll.id)} />
+    {:else if video}
+      <Video id={Number(video.id)} />
     {:else if page}
       <page.page />
     {:else}
@@ -84,6 +91,7 @@
     {/if}
   {/key}
 </main>
+<Footer />
 
 <style>
   main {

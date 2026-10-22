@@ -98,7 +98,7 @@
       {:else if done && !items.length}
         <div class="empty">{tab === 'mine' ? 'Коллекций пока нет — создайте первую.' : 'Пусто'}</div>
       {/if}
-      {#if !done}<div bind:this={sentinel}></div>{/if}
+      {#if !done && !error}<div bind:this={sentinel}></div>{/if}
     {/if}
   </section>
 </div>

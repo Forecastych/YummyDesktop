@@ -2,6 +2,7 @@ import { api, type RequestOptions } from './client'
 import type {
   Anime,
   AnimeShort,
+  BloggerVideo,
   Catalog,
   Collection,
   CollectionInput,
@@ -90,6 +91,14 @@ export const Api = {
     api<PostShort[]>('/posts', { query: { limit: 20, skip, category, sort: 'new' }, ttl: 5 * MIN, ...o }),
 
   post: (id: number, o: Sig = {}) => api<Post>(`/posts/${id}`, { ttl: 10 * MIN, ...o }),
+
+  // ---- видео блогеров ----
+
+  /** Сервер отдаёт не больше 30 роликов за раз. */
+  bloggerVideos: (q: { category?: string; sort?: 'new' | 'old' | 'top'; offset?: number; limit?: number }, o: Sig = {}) =>
+    api<BloggerVideo[]>('/bloggers/video', { query: { limit: 30, ...q }, ttl: 5 * MIN, ...o }),
+
+  bloggerVideo: (id: number, o: Sig = {}) => api<BloggerVideo>(`/bloggers/video/${id}`, { ttl: 10 * MIN, ...o }),
 
   // ---- коллекции ----
 

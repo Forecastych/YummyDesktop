@@ -45,6 +45,7 @@
         { title: 'Интервью', href: '/posts?category=interview' },
       ],
     },
+    { title: 'Видео', href: '/videos' },
   ]
 
   const section = $derived('/' + (route.path.split('/')[1] ?? ''))

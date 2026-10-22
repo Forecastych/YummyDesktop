@@ -152,6 +152,31 @@ export interface Feed {
   new_videos: FeedVideo[]
   schedule: AnimeShort[]
   posts: { items: PostShort[]; types: PostCategory[] }
+  blogger?: { videos: { items: BloggerVideo[]; categories: VideoCategory[] }; people: { items: UserShort[] } }
+  collections?: Collection[]
+}
+
+export interface VideoCategory {
+  id: string
+  title: string
+}
+
+/** Ролик видеоблогера сайта (сейчас все — встраиваемый YouTube). */
+export interface BloggerVideo {
+  id: number
+  title: string
+  has_spoiler: boolean
+  creator: UserShort
+  descriptions?: { big?: string; small?: string }
+  category: VideoCategory
+  previews: { small?: string; big?: string }
+  iframe_url: string
+  publish_date: number
+  likes?: Likes
+  views: number
+  language?: string
+  comments_count?: number
+  animes?: AnimeShort[]
 }
 
 export interface Genre {

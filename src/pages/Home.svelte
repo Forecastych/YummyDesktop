@@ -3,15 +3,19 @@
   import { ChevronDown, ChevronUp, X } from '@lucide/svelte'
   import { img, peek } from '../lib/api/client'
   import { Api } from '../lib/api/endpoints'
-  import type { AnimeShort, Feed } from '../lib/api/types'
+  import type { AnimeShort, BloggerVideo, Collection, Feed } from '../lib/api/types'
   import AnimeCard from '../lib/components/AnimeCard.svelte'
+  import CollectionCard from '../lib/components/CollectionCard.svelte'
   import Loader from '../lib/components/Loader.svelte'
   import Row from '../lib/components/Row.svelte'
+  import VideoCard from '../lib/components/VideoCard.svelte'
   import { ago, date, hm } from '../lib/format'
   import { prefetchAnime } from '../lib/prefetch'
   import { query } from '../lib/query.svelte'
+  import { auth } from '../lib/stores/auth.svelte'
   import { follows } from '../lib/stores/follows.svelte'
   import { feedWatches, recent, removeFromHistory } from '../lib/stores/history.svelte'
+  import { picks } from '../lib/stores/smart.svelte'
 
   const SEASONS = ['', 'зимы', 'весны', 'лета', 'осени']
   /** Сколько обновлений видно в свёрнутом списке. */
@@ -22,6 +26,29 @@
     (signal) => Api.feed(untrack(feedWatches), { signal }),
     () => peek<Feed>('/feed', { query: { watches: untrack(feedWatches) }, persist: 'feed' }),
   )
+
+  /** Блок из ленты, а если его там нет или лента упала — своим запросом. Пока лента грузится, ждём её. */
+  function fromFeed<T>(pick: (f: Feed) => T[] | undefined, load: (signal: AbortSignal) => Promise<T[]>) {
+    return query<T[]>((signal) => {
+      const items = feed.data && pick(feed.data)
+      if (items?.length) return Promise.resolve(items)
+      if (!feed.data && !feed.error) return new Promise<T[]>(() => {})
+      return load(signal)
+    })
+  }
+
+  const videos = fromFeed<BloggerVideo>(
+    (f) => f.blogger?.videos.items,
+    (signal) => Api.bloggerVideos({ limit: 12 }, { signal }),
+  )
+  const colls = fromFeed<Collection>(
+    (f) => f.collections,
+    (signal) => Api.collections({ sort: 'best', limit: 12 }, { signal }),
+  )
+
+  // Рекомендации сайта приходят только вошедшим; иначе — своя подборка «Для вас» по истории.
+  const siteRecs = $derived(feed.data?.recommends ?? [])
+  const localRecs = $derived(siteRecs.length ? [] : picks().slice(0, 20))
 
   const cont = $derived(recent(20))
   const fresh = $derived(Object.values(follows).filter((f) => f.fresh > 0))
@@ -38,10 +65,39 @@
       .slice(0, 12)
   })
 
+  /** Лента отдаёт год карусели двумя цифрами («26»). */
+  const fullYear = (y: number) => (y < 100 ? 2000 + y : y)
+
   function ep(a: AnimeShort) {
     return a.episodes ? `${a.episodes.aired} из ${a.episodes.count || '?'}` : ''
   }
 </script>
+
+{#snippet videoBlock()}
+  <section class="block">
+    <h2 class="block-title">Видео <a class="more" href="#/videos">все</a></h2>
+    {#if videos.data?.length}
+      <Row itemWidth={280}>
+        {#each videos.data as v (v.id)}<VideoCard {v} />{/each}
+      </Row>
+    {:else}
+      <Loader small error={videos.error} retry={videos.retry} />
+    {/if}
+  </section>
+{/snippet}
+
+{#snippet collBlock()}
+  <section class="block">
+    <h2 class="block-title">Коллекции <a class="more" href="#/collections">все</a></h2>
+    {#if colls.data?.length}
+      <Row itemWidth={220}>
+        {#each colls.data as c (c.id)}<CollectionCard {c} />{/each}
+      </Row>
+    {:else}
+      <Loader small error={colls.error} retry={colls.retry} />
+    {/if}
+  </section>
+{/snippet}
 
 <div class="container page">
   {#if fresh.length}
@@ -83,7 +139,7 @@
     {@const f = feed.data}
     <section class="block">
       <h2 class="block-title">
-        Аниме {SEASONS[f.top_carousel.season] ?? ''} {f.top_carousel.year}
+        Аниме {SEASONS[f.top_carousel.season] ?? ''} {fullYear(f.top_carousel.year)}
         <a class="more" href="#/catalog?status=ongoing">все онгоинги</a>
       </h2>
       <Row>
@@ -121,9 +177,9 @@
       </section>
 
       <aside>
-        {#if today.length}
-          <section class="block">
-            <h2 class="block-title">Сегодня выйдут <a class="more" href="#/schedule">расписание</a></h2>
+        <section class="block">
+          <h2 class="block-title">Сегодня выйдут <a class="more" href="#/schedule">расписание</a></h2>
+          {#if today.length}
             <ul class="today">
               {#each today as a (a.anime_id)}
                 <li>
@@ -135,33 +191,63 @@
                 </li>
               {/each}
             </ul>
-          </section>
-        {/if}
-
-        <section class="block">
-          <h2 class="block-title">Новости <a class="more" href="#/posts">все</a></h2>
-          <ul class="news">
-            {#each f.posts.items.slice(0, 8) as p (p.id)}
-              <li>
-                <a href="#/posts/{p.id}">
-                  {#if p.preview_image}
-                    <img src={img(p.preview_image)} alt="" loading="lazy" width="96" height="54" />
-                  {/if}
-                  <span>
-                    <span class="n-title">{p.title}</span>
-                    <span class="n-meta">{p.category.title} · {date(p.created_at)}</span>
-                  </span>
-                </a>
-              </li>
-            {/each}
-          </ul>
+          {:else}
+            <p class="hint">На сегодня новых серий по расписанию нет</p>
+          {/if}
         </section>
       </aside>
     </div>
 
+    <section class="block">
+      <h2 class="block-title">Рекомендации <a class="more" href="#/for-you">все</a></h2>
+      {#if siteRecs.length}
+        <Row>
+          {#each siteRecs as a (a.anime_id)}<AnimeCard anime={a} sub={a.year ? String(a.year) : ''} />{/each}
+        </Row>
+      {:else if localRecs.length}
+        <Row>
+          {#each localRecs as c (c.anime.anime_id)}
+            <AnimeCard anime={c.anime as AnimeShort} sub={c.anime.year ? String(c.anime.year) : ''} />
+          {/each}
+        </Row>
+      {:else}
+        <div class="invite">
+          {#if auth.profile}
+            <p>Оцените или добавьте в списки несколько тайтлов — и здесь появятся рекомендации.</p>
+            <a class="btn small" href="#/for-you">Подборка «Для вас»</a>
+          {:else}
+            <p>Войдите, чтобы получить персональные рекомендации, или посмотрите пару тайтлов — подборка соберётся по истории.</p>
+            <div class="invite-btns">
+              <a class="btn small accent" href="#/login">Войти</a>
+              <a class="btn small" href="#/for-you">Подборка «Для вас»</a>
+            </div>
+          {/if}
+        </div>
+      {/if}
+    </section>
+
+    {#if f.posts.items.length}
+      <section class="block">
+        <h2 class="block-title">Новости <a class="more" href="#/posts">все</a></h2>
+        <Row itemWidth={260}>
+          {#each f.posts.items as p (p.id)}
+            <a class="ncard" href="#/posts/{p.id}">
+              <div class="n-img">
+                {#if p.preview_image}<img src={img(p.preview_image)} alt="" loading="lazy" decoding="async" />{/if}
+              </div>
+              <span class="n-title">{p.title}</span>
+              <span class="n-meta">{p.category.title} · {date(p.created_at)}</span>
+            </a>
+          {/each}
+        </Row>
+      </section>
+    {/if}
+
+    {@render videoBlock()}
+
     {#if f.announcements.length}
       <section class="block">
-        <h2 class="block-title">Анонсы <a class="more" href="#/catalog?status=announcement">все анонсы</a></h2>
+        <h2 class="block-title">Анонсы <a class="more" href="#/catalog?status=announcement">все</a></h2>
         <Row>
           {#each f.announcements as a (a.anime_id)}
             <AnimeCard anime={a} sub={a.year ? String(a.year) : ''} />
@@ -170,18 +256,27 @@
       </section>
     {/if}
 
+    {@render collBlock()}
+
     {#if f.new.length}
       <section class="block">
-        <h2 class="block-title">Новое на сайте</h2>
+        <h2 class="block-title">Новое на сайте <a class="more" href="#/catalog?sort=id">все новинки</a></h2>
         <div class="grid pad">
           {#each f.new as a (a.anime_id)}
             <AnimeCard anime={a} sub={[a.type?.shortname, a.year].filter(Boolean).join(' · ')} />
           {/each}
         </div>
+        <!-- Лента отдаёт только 18 новинок; дальше — каталог «Недавно добавленные», как на сайте. -->
+        <a class="expand" href="#/catalog?sort=id">Показать ещё <ChevronDown size={14} /></a>
       </section>
     {/if}
   {:else}
-    <Loader error={feed.error} retry={feed.retry} />
+    <section class="block"><Loader error={feed.error} retry={feed.retry} /></section>
+    <!-- У этих блоков свои запросы: если упала только лента, они всё равно загрузятся. -->
+    {#if feed.error}
+      {@render videoBlock()}
+      {@render collBlock()}
+    {/if}
   {/if}
 </div>
 
@@ -232,7 +327,6 @@
     padding: 0;
   }
   .updates li + li,
-  .news li + li,
   .today li + li {
     border-top: 1px solid var(--line);
   }
@@ -317,22 +411,6 @@
     font-size: 12px;
     color: var(--muted);
   }
-  .news a {
-    display: flex;
-    gap: 10px;
-    padding: 8px 14px;
-  }
-  .news img {
-    width: 96px;
-    height: 54px;
-    object-fit: cover;
-    border-radius: 3px;
-    flex: none;
-    background: var(--panel-2);
-  }
-  .news a:hover .n-title {
-    color: var(--accent);
-  }
   .n-title {
     display: -webkit-box;
     -webkit-line-clamp: 2;
@@ -350,6 +428,51 @@
   }
   .pad {
     padding: 12px;
+  }
+  .hint {
+    margin: 0;
+    padding: 16px 14px;
+    color: var(--muted);
+    font-size: 13px;
+  }
+  .invite {
+    display: grid;
+    justify-items: center;
+    gap: 12px;
+    padding: 28px 16px;
+    text-align: center;
+    color: var(--muted);
+  }
+  .invite p {
+    margin: 0;
+    max-width: 520px;
+  }
+  .invite-btns {
+    display: flex;
+    gap: 8px;
+  }
+  .ncard {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+  }
+  .n-img {
+    aspect-ratio: 16 / 9;
+    border-radius: var(--radius);
+    overflow: hidden;
+    background: var(--panel-2);
+  }
+  .n-img img {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+    transition: transform 0.3s;
+  }
+  .ncard:hover .n-img img {
+    transform: scale(1.04);
+  }
+  .ncard:hover .n-title {
+    color: var(--accent);
   }
   @media (max-width: 1150px) {
     .cols {
