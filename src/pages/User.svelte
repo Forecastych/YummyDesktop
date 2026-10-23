@@ -252,7 +252,9 @@
           </div>
         {/if}
         {#if listTime.rows.length}
-          <h3 class="sub">Хронометраж по спискам</h3>
+          <h3 class="sub" title="Сумма длительности всех серий у тайтлов в списке — не то, сколько реально посмотрено на сайте">
+            Общая длительность аниме в списках
+          </h3>
           <div class="bars">
             {#each listTime.rows as r (r.list.id)}
               <a class="lbl" href={link(`/users/${id}?list=${r.list.id}`)}>{r.list.title}</a>
