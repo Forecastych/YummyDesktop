@@ -28,6 +28,7 @@
   $effect(() => {
     const un = onNative('tray-hidden', () => {
       stopped = true
+      flushWatch()
       cancelCountdown()
     })
     return () => void un.then((f) => f())
@@ -67,6 +68,31 @@
   let lastSaved = 0
   let countdownTimer: ReturnType<typeof setInterval> | undefined
 
+  // Позиция для сайта: как и сайт, шлём её при смене серии и выходе, плюс раз в минуту —
+  // окно может уйти в трей или быть убито, не дойдя до beforeunload.
+  const WATCH_SYNC_EVERY = 60_000
+  let watch: { videoId: number; time: number; times: Set<number> } | null = null
+  let watchSentAt = 0
+
+  function flushWatch(keepalive = false) {
+    const w = watch
+    watch = null
+    watchSentAt = Date.now()
+    if (!w || !auth.profile) return
+    Api.markWatched(w.videoId, w.time, [...w.times], keepalive).catch(() => {})
+  }
+
+  function trackWatch(t: number) {
+    if (watch?.videoId !== video.video_id) {
+      watch = { videoId: video.video_id, time: t, times: new Set() }
+      watchSentAt = Date.now()
+    }
+    // Как сайт: не ближе 10 секунд к концу, чтобы «продолжить» не открывало титры.
+    watch.time = dur > 0 ? Math.max(Math.min(t, dur - 10), 0) : t
+    watch.times.add(Math.round(t))
+    if (Date.now() - watchSentAt >= WATCH_SYNC_EVERY) flushWatch()
+  }
+
   $effect(() => {
     const v = video
     untrack(() => {
@@ -91,6 +117,8 @@
         duration: p?.duration || v.duration || 0,
       })
     })
+    // Сменили серию или закрыли тайтл — досылаем позицию в прошлой.
+    return () => flushWatch()
   })
 
   function send(method: string, extra: Record<string, unknown> = {}) {
@@ -154,12 +182,12 @@
       flash('Опенинг пропущен')
     }
     if (inEnding && settings.autoSkipEnding && !skippedEd) skipEnding()
+    if (t > 0) trackWatch(t)
 
     // Прогресс пишем раз в 5 секунд, а не на каждый тик плеера.
     if (Math.abs(t - lastSaved) >= 5 && dur > 0) {
       lastSaved = t
-      const crossed = setProgress(anime.anime_id, video.number, t, dur)
-      if (crossed && auth.profile) Api.markWatched(video.video_id, t, dur).catch(() => {})
+      if (setProgress(anime.anime_id, video.number, t, dur)) flushWatch()
     }
   }
 
@@ -177,8 +205,9 @@
         break
       case 'player_video_ended':
         if (dur > 0) {
-          const crossed = setProgress(anime.anime_id, video.number, dur, dur)
-          if (crossed && auth.profile) Api.markWatched(video.video_id, dur, dur).catch(() => {})
+          setProgress(anime.anime_id, video.number, dur, dur)
+          trackWatch(dur)
+          flushWatch()
         }
         startCountdown()
         break
@@ -191,7 +220,7 @@
   }
 </script>
 
-<svelte:window onmessage={onMessage} />
+<svelte:window onmessage={onMessage} onbeforeunload={() => flushWatch(true)} />
 <svelte:document onfullscreenchange={onFullscreen} />
 
 <div class="player">

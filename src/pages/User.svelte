@@ -10,6 +10,7 @@
   import ProfileEdit from '../lib/components/ProfileEdit.svelte'
   import More from '../lib/components/More.svelte'
   import ReviewCard from '../lib/components/ReviewCard.svelte'
+  import Row from '../lib/components/Row.svelte'
   import { ago, date, isOnline, plural, RATE_COLORS, roleTitles, spent } from '../lib/format'
   import { openExternal, setTitle } from '../lib/native'
   import { pager } from '../lib/pager.svelte'
@@ -17,6 +18,7 @@
   import { go, link, route } from '../lib/router.svelte'
   import { richText } from '../lib/sanitize'
   import { auth } from '../lib/stores/auth.svelte'
+  import { recent, removeFromHistory, syncHistory, watchLine } from '../lib/stores/history.svelte'
   import { wheelScroll } from '../lib/wheel'
 
   // own — свой профиль (/profile): плюс кнопка выхода.
@@ -34,6 +36,14 @@
   $effect(() => {
     if (user.data) setTitle(`${user.data.nickname} — YummyDesktop`)
   })
+
+  // ---- история просмотра: API отдаёт её только владельцу, так что показываем лишь в своём профиле ----
+
+  const mine = $derived(own || auth.profile?.id === id)
+  $effect(() => {
+    if (mine) untrack(syncHistory)
+  })
+  const watched = $derived(mine ? recent(20) : [])
 
   // ---- редактирование своего профиля ----
 
@@ -291,6 +301,23 @@
         {/if}
       </section>
     </div>
+
+    {#if watched.length}
+      <section class="block">
+        <h2 class="block-title">История просмотра <a class="more" href="#/history">вся история</a></h2>
+        <Row>
+          {#each watched as e (e.animeId)}
+            <AnimeCard
+              anime={{ anime_id: e.animeId, anime_url: e.url, title: e.title, poster: e.poster }}
+              sub={watchLine(e) || e.dubbing}
+              progress={e.duration ? e.time / e.duration : undefined}
+              onremove={() => removeFromHistory(e.animeId)}
+              removeTitle="Убрать из истории"
+            />
+          {/each}
+        </Row>
+      </section>
+    {/if}
 
     <section class="block">
       <div class="tabs">

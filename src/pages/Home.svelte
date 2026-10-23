@@ -14,7 +14,7 @@
   import { query } from '../lib/query.svelte'
   import { auth } from '../lib/stores/auth.svelte'
   import { follows } from '../lib/stores/follows.svelte'
-  import { feedWatches, recent, removeFromHistory } from '../lib/stores/history.svelte'
+  import { feedWatches, recent, removeFromHistory, syncHistory, watchLine } from '../lib/stores/history.svelte'
   import { picks } from '../lib/stores/smart.svelte'
 
   const SEASONS = ['', 'зимы', 'весны', 'лета', 'осени']
@@ -50,6 +50,7 @@
   const siteRecs = $derived(feed.data?.recommends ?? [])
   const localRecs = $derived(siteRecs.length ? [] : picks().slice(0, 20))
 
+  syncHistory()
   const cont = $derived(recent(20))
   const fresh = $derived(Object.values(follows).filter((f) => f.fresh > 0))
 
@@ -123,7 +124,7 @@
           <div class="cont">
             <AnimeCard
               anime={{ anime_id: e.animeId, anime_url: e.url, title: e.title, poster: e.poster }}
-              sub="{e.episode} серия · {e.dubbing}"
+              sub={watchLine(e) || e.dubbing}
               progress={e.duration ? e.time / e.duration : undefined}
             />
             <button class="remove" title="Убрать из истории" onclick={() => removeFromHistory(e.animeId)}>

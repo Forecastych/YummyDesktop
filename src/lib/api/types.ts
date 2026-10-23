@@ -80,6 +80,8 @@ export interface Video {
   duration: number
   views: number
   skips: { opening: Skip | null; ending: Skip | null }
+  /** Отметка с сайта (только вошедшим): где остановились и когда. */
+  watched?: { end_time: number; date: number } | null
 }
 
 export interface ViewingOrderItem extends AnimeShort {
@@ -348,8 +350,9 @@ export interface Notification {
   object_id: number
 }
 
+/** Последний просмотр по тайтлу; id серии сервер не отдаёт — только номер в ep_title. */
 export interface LastWatch {
-  video_id: number
+  video_id?: number
   anime_id: number
   anime_url: string
   title: string

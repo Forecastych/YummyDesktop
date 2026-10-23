@@ -2,7 +2,8 @@
   import { Trash2 } from '@lucide/svelte'
   import AnimeCard from '../lib/components/AnimeCard.svelte'
   import { ago } from '../lib/format'
-  import { recent, removeFromHistory, syncHistory } from '../lib/stores/history.svelte'
+  import { auth } from '../lib/stores/auth.svelte'
+  import { recent, removeFromHistory, syncHistory, watchLine } from '../lib/stores/history.svelte'
 
   syncHistory()
 
@@ -28,7 +29,7 @@
           <div class="item">
             <AnimeCard
               anime={{ anime_id: e.animeId, anime_url: e.url, title: e.title, poster: e.poster }}
-              sub="{e.episode ? `${e.episode} серия · ` : ''}{ago(Math.floor(e.updatedAt / 1000))}"
+              sub={[watchLine(e), ago(Math.floor(e.updatedAt / 1000))].filter(Boolean).join(' · ')}
               progress={e.duration ? e.time / e.duration : undefined}
             />
             <div class="dub">{e.dubbing}</div>
@@ -37,8 +38,12 @@
       </div>
     {:else}
       <div class="empty">
-        Здесь появятся тайтлы, которые вы начали смотреть.<br />История хранится только на этом компьютере и
-        работает без аккаунта.
+        Здесь появятся тайтлы, которые вы начали смотреть.<br />
+        {#if auth.profile}
+          История сверяется с сайтом: то, что смотрели там или в приложении на телефоне, тоже будет здесь.
+        {:else}
+          История работает без аккаунта; после входа она будет сверяться с сайтом.
+        {/if}
       </div>
     {/if}
   </section>

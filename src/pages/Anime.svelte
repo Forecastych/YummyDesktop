@@ -33,7 +33,7 @@
   import { auth } from '../lib/stores/auth.svelte'
   import { isDubSubscribed, toggleDubSub } from '../lib/stores/dubsubs.svelte'
   import { isFollowed, seen, toggleFollow } from '../lib/stores/follows.svelte'
-  import { history, markDone, progressOf } from '../lib/stores/history.svelte'
+  import { history, markDone, mergeWatched, progressOf } from '../lib/stores/history.svelte'
   import { settings } from '../lib/stores/settings.svelte'
   import type { BloggerVideo } from '../lib/api/types'
   import VideoCard from '../lib/components/VideoCard.svelte'
@@ -185,9 +185,10 @@
     const anime = a
     if (!anime) return
     untrack(() => {
+      mergeWatched(anime, anime.videos)
       const last = history.last[anime.anime_id]
-      // Запись из истории аккаунта (смотрел на сайте) знает только id серии —
-      // озвучку и плеер берём из неё.
+      // Запись из истории аккаунта (смотрел на сайте) может не знать озвучку и плеер —
+      // берём их из серии по id.
       const lastVideo = last?.videoId ? anime.videos?.find((v) => v.video_id === last.videoId) : undefined
       const lastEp = last?.episode || lastVideo?.number || ''
       dubbing =
@@ -255,7 +256,7 @@
     markDone(a.anime_id, current.number, done)
     if (!auth.profile) return
     try {
-      if (done) await Api.markWatched(current.video_id, current.duration || 1, current.duration || 1)
+      if (done) await Api.markWatched(current.video_id, current.duration || 1)
       else await Api.unmarkWatched(current.video_id)
     } catch {
       /* локальная отметка уже стоит */

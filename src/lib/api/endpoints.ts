@@ -308,16 +308,21 @@ export const Api = {
       ? api<unknown>(`/anime/${id}/rate`, { method: 'PUT', body: { rate } })
       : api<unknown>(`/anime/${id}/rate`, { method: 'DELETE' }),
 
-  markWatched: (videoId: number, time: number, duration: number) =>
-    api<unknown>(`/video/${videoId}`, {
-      method: 'PUT',
-      body: { time: Math.floor(time), duration: Math.floor(duration), date: Math.floor(Date.now() / 1000) },
-    }),
+  /**
+   * Позиция в серии — как шлёт сайт: time — где остановились, times — секунды, которые
+   * реально проиграли (из них сайт считает время просмотра). Сайт решает сам, досмотрена ли серия.
+   */
+  markWatched: (videoId: number, time: number, times: number[] = [], keepalive = false) =>
+    api<unknown>(`/video/${videoId}`, { method: 'PUT', body: { time: Math.floor(time), times }, keepalive }),
 
   unmarkWatched: (videoId: number) => api<unknown>(`/video/${videoId}`, { method: 'DELETE' }),
 
   /** Последние просмотры аккаунта — с сайта и телефона тоже. */
   lastWatches: (watches: string[] = []) => api<LastWatch[]>('/video/last-watches', { query: { watches }, ttl: 0 }),
+
+  /** Досылает аккаунту просмотры, сделанные без входа (тот же вызов есть у сайта). */
+  uploadWatches: (videos: { videoId: number; time: number; date: number }[]) =>
+    api<unknown>('/video', { method: 'POST', body: { videos } }),
 
   /** Подписка на новые серии конкретной озвучки в конкретном плеере (любая её серия). */
   subscribeDubbing: (videoId: number, on: boolean) =>

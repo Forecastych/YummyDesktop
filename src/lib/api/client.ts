@@ -29,6 +29,8 @@ export interface RequestOptions {
   /** Ключ для дискового кэша (stale-while-revalidate между запусками). */
   persist?: string
   signal?: AbortSignal
+  /** Дожить до сервера, даже если окно закрывают (позиция в серии при выходе). */
+  keepalive?: boolean
 }
 
 // ---- авторизация (токен живёт тут, чтобы клиент не зависел от UI-сторов) ----
@@ -119,6 +121,7 @@ async function send<T>(path: string, opts: RequestOptions): Promise<T> {
     headers: h,
     body: opts.raw ?? (hasBody ? JSON.stringify(opts.body) : undefined),
     signal: opts.signal,
+    keepalive: opts.keepalive,
   })
   let data: any = null
   const text = await res.text()
