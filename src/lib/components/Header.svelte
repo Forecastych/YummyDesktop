@@ -70,7 +70,7 @@
           {#if item.children}
             <div class="menu">
               {#each item.children as c (c.href)}
-                <a href="#{c.href}">{c.title}</a>
+                <a href="#{c.href}" onclick={(e) => e.currentTarget.blur()}>{c.title}</a>
               {/each}
             </div>
           {/if}
@@ -195,8 +195,9 @@
       transform 0.12s,
       visibility 0.12s;
   }
+  /* Не :focus-within: после клика мышью фокус остаётся на пункте и меню висит открытым. */
   .nav-item:hover .menu,
-  .nav-item:focus-within .menu {
+  .nav-item:has(:focus-visible) .menu {
     visibility: visible;
     opacity: 1;
     transform: none;
