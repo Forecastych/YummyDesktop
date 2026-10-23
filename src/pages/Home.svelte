@@ -1,6 +1,15 @@
 <script lang="ts">
   import { untrack } from 'svelte'
-  import { ChevronDown, ChevronUp, X } from '@lucide/svelte'
+  import {
+    CalendarDays,
+    CalendarRange,
+    Check,
+    ChevronDown,
+    ChevronLeft,
+    ChevronRight,
+    Clapperboard,
+    X,
+  } from '@lucide/svelte'
   import { img, peek } from '../lib/api/client'
   import { Api } from '../lib/api/endpoints'
   import type { AnimeShort, BloggerVideo, Collection, Feed } from '../lib/api/types'
@@ -9,18 +18,21 @@
   import Loader from '../lib/components/Loader.svelte'
   import Row from '../lib/components/Row.svelte'
   import VideoCard from '../lib/components/VideoCard.svelte'
-  import { ago, date, hm } from '../lib/format'
+  import { date, hm, plural } from '../lib/format'
   import { prefetchAnime } from '../lib/prefetch'
   import { query } from '../lib/query.svelte'
   import { auth } from '../lib/stores/auth.svelte'
   import { follows } from '../lib/stores/follows.svelte'
   import { feedWatches, recent, removeFromHistory, syncHistory, watchLine } from '../lib/stores/history.svelte'
   import { picks } from '../lib/stores/smart.svelte'
+  import { glideBy, wheelScroll } from '../lib/wheel'
 
   const SEASONS = ['', 'зимы', 'весны', 'лета', 'осени']
-  /** Сколько обновлений видно в свёрнутом списке. */
-  const UPDATES_COLLAPSED = 8
-  let updatesOpen = $state(false)
+  const MONTHS = ['Январь', 'Февраль', 'Март', 'Апрель', 'Май', 'Июнь', 'Июль', 'Август', 'Сентябрь', 'Октябрь', 'Ноябрь', 'Декабрь']
+  const WD = ['Вс', 'Пн', 'Вт', 'Ср', 'Чт', 'Пт', 'Сб']
+  /** Лента расписания: пара прошедших дней (что вышло) и неделя вперёд. Старше — не показываем. */
+  const DAYS_BACK = 2
+  const DAYS_AHEAD = 7
 
   const feed = query<Feed>(
     (signal) => Api.feed(untrack(feedWatches), { signal }),
@@ -54,17 +66,80 @@
   const cont = $derived(recent(20))
   const fresh = $derived(Object.values(follows).filter((f) => f.fresh > 0))
 
-  // Расписание на сегодня: тайтлы, у которых следующая серия выходит до конца дня.
-  const today = $derived.by(() => {
-    const items = feed.data?.schedule ?? []
-    const end = new Date()
-    end.setHours(23, 59, 59, 999)
-    const now = Date.now() / 1000 - 6 * 3600
-    return items
-      .filter((a) => a.episodes && a.episodes.next_date > now && a.episodes.next_date * 1000 <= end.getTime())
-      .sort((a, b) => a.episodes!.next_date - b.episodes!.next_date)
-      .slice(0, 12)
+  const sched = query<AnimeShort[]>(
+    (signal) => Api.schedule({ signal }),
+    () => peek<AnimeShort[]>('/anime/schedule', { persist: 'schedule' }),
+  )
+
+  // Часы для «выйдет через…» и отметок «вышла»: раз в минуту хватает.
+  let now = $state(Date.now() / 1000)
+  $effect(() => {
+    const id = setInterval(() => (now = Date.now() / 1000), 60_000)
+    return () => clearInterval(id)
   })
+
+  interface Slot {
+    a: AnimeShort
+    t: number
+    ep: number
+    out: boolean
+  }
+
+  /**
+   * Дни ленты со всеми сериями дня. Сайт убирает серию, как только она вышла, —
+   * здесь она остаётся с пометкой: вышедшая в этот день берётся из prev_date,
+   * а next_date из прошлого значит, что серия вышла, но API ещё не перевёл счётчик.
+   */
+  const days = $derived.by(() => {
+    const start = new Date(now * 1000)
+    start.setHours(0, 0, 0, 0)
+    start.setDate(start.getDate() - DAYS_BACK)
+    const out = Array.from({ length: DAYS_BACK + 1 + DAYS_AHEAD }, (_, i) => {
+      const d = new Date(start)
+      d.setDate(d.getDate() + i)
+      const next = new Date(d)
+      next.setDate(next.getDate() + 1)
+      return { date: d, from: d.getTime() / 1000, to: next.getTime() / 1000, slots: [] as Slot[] }
+    })
+    const dayOf = (t: number) => out.find((d) => t >= d.from && t < d.to)
+    for (const a of sched.data ?? feed.data?.schedule ?? []) {
+      const e = a.episodes
+      if (!e) continue
+      const nd = e.next_date ? dayOf(e.next_date) : undefined
+      nd?.slots.push({ a, t: e.next_date, ep: e.aired + 1, out: e.next_date <= now })
+      const pd = e.prev_date ? dayOf(e.prev_date) : undefined
+      if (pd && pd !== nd) pd.slots.push({ a, t: e.prev_date, ep: e.aired, out: true })
+    }
+    for (const d of out) d.slots.sort((x, y) => x.t - y.t)
+    return out
+  })
+
+  let dayIdx = $state(DAYS_BACK)
+  const day = $derived(days[dayIdx])
+  let strip = $state<HTMLElement>()
+
+  /** Дни, сгруппированные по месяцам, — для подписей над лентой. */
+  const months = $derived.by(() => {
+    const g: { name: string; days: { d: (typeof days)[number]; i: number }[] }[] = []
+    days.forEach((d, i) => {
+      const name = MONTHS[d.date.getMonth()]
+      const last = g.at(-1)
+      if (last?.name === name) last.days.push({ d, i })
+      else g.push({ name, days: [{ d, i }] })
+    })
+    return g
+  })
+
+  function until(t: number) {
+    const m = Math.max(1, Math.round((t - now) / 60))
+    if (m < 60) return `через ${m} ${plural(m, 'минуту', 'минуты', 'минут')}`
+    const h = Math.round(m / 60)
+    if (h < 24) return `через ${h} ${plural(h, 'час', 'часа', 'часов')}`
+    const d = Math.round(h / 24)
+    return `через ${d} ${plural(d, 'день', 'дня', 'дней')}`
+  }
+
+  const dayMonth = (t: number) => new Date(t * 1000).toLocaleDateString('ru', { day: 'numeric', month: 'long' })
 
   /** Лента отдаёт год карусели двумя цифрами («26»). */
   const fullYear = (y: number) => (y < 100 ? 2000 + y : y)
@@ -155,52 +230,98 @@
   {#if feed.data}
     {@const f = feed.data}
     <div class="cols">
-      <section class="block updates">
-        <h2 class="block-title">Обновления аниме</h2>
-        <ul>
-          {#each updatesOpen ? f.new_videos : f.new_videos.slice(0, UPDATES_COLLAPSED) as v (v.video_id)}
+      <section class="block side">
+        <h2 class="block-title"><Clapperboard size={17} class="ico" /> Обновления аниме</h2>
+        <ul class="rows">
+          {#each f.new_videos as v (v.video_id)}
             <li>
-              <a href="#/anime/{v.anime_url}?ep={encodeURIComponent(v.ep_title)}" use:prefetchAnime={v.anime_url}>
-                <img src={img(v.poster?.small)} alt="" width="40" height="56" loading="lazy" />
-                <span class="u-title">{v.title}</span>
-                <span class="u-ep">{v.ep_title} серия</span>
-                <span class="u-dub">{v.dub_title}</span>
-                <span class="u-time">{ago(v.date)}</span>
+              <a
+                class="row"
+                href="#/anime/{v.anime_url}?ep={encodeURIComponent(v.ep_title)}"
+                use:prefetchAnime={v.anime_url}
+              >
+                <img src={img(v.poster?.small)} alt="" width="50" height="70" loading="lazy" />
+                <span class="r-body">
+                  <span class="r-title">{v.title}</span>
+                  <span class="r-sub">
+                    Добавлена {v.ep_title} серия ({[v.dub_title, v.player_title].filter(Boolean).join(', ')})
+                  </span>
+                </span>
+                <span class="r-side">
+                  <span class="r-date">{dayMonth(v.date)}</span>
+                  {hm(new Date(v.date * 1000))}
+                </span>
               </a>
             </li>
           {/each}
         </ul>
-        {#if f.new_videos.length > UPDATES_COLLAPSED}
-          <button class="expand" aria-expanded={updatesOpen} onclick={() => (updatesOpen = !updatesOpen)}>
-            {#if updatesOpen}
-              <ChevronUp size={14} /> Свернуть
-            {:else}
-              <ChevronDown size={14} /> Развернуть (ещё {f.new_videos.length - UPDATES_COLLAPSED})
-            {/if}
-          </button>
-        {/if}
       </section>
 
-      <aside>
-        <section class="block">
-          <h2 class="block-title">Сегодня выйдут <a class="more" href="#/schedule">расписание</a></h2>
-          {#if today.length}
-            <ul class="today">
-              {#each today as a (a.anime_id)}
-                <li>
-                  <a href="#/anime/{a.anime_url}" use:prefetchAnime={a.anime_url}>
-                    <span class="t-time">{hm(new Date(a.episodes!.next_date * 1000))}</span>
-                    <span class="t-title">{a.title}</span>
-                    <span class="t-ep">{a.episodes!.aired + 1} серия</span>
-                  </a>
-                </li>
-              {/each}
-            </ul>
-          {:else}
-            <p class="hint">На сегодня новых серий по расписанию нет</p>
-          {/if}
-        </section>
-      </aside>
+      <section class="block side">
+        <h2 class="block-title">
+          <CalendarDays size={17} class="ico" /> Расписание онгоингов
+          <a class="more" href="#/schedule" title="Всё расписание" aria-label="Всё расписание">
+            <CalendarRange size={18} />
+          </a>
+        </h2>
+        <div class="week">
+          <button class="arrow" aria-label="Раньше" onclick={() => strip && glideBy(strip, -strip.clientWidth * 0.75)}>
+            <ChevronLeft size={18} />
+          </button>
+          <div class="strip" bind:this={strip} use:wheelScroll>
+            {#each months as m (m.name)}
+              <div class="month">
+                <span class="m-name">{m.name}</span>
+                <div class="m-days">
+                  {#each m.days as { d, i } (i)}
+                    {@const wd = d.date.getDay()}
+                    <button
+                      class="day"
+                      class:sel={i === dayIdx}
+                      class:past={d.to <= now}
+                      aria-pressed={i === dayIdx}
+                      onclick={() => (dayIdx = i)}
+                    >
+                      <span class="wd" class:weekend={wd === 0 || wd === 6}>{WD[wd]}</span>
+                      <span class="dn">{d.date.getDate()}</span>
+                      {#if d.slots.length}<span class="cnt">{d.slots.length}</span>{/if}
+                    </button>
+                  {/each}
+                </div>
+              </div>
+            {/each}
+          </div>
+          <button class="arrow" aria-label="Позже" onclick={() => strip && glideBy(strip, strip.clientWidth * 0.75)}>
+            <ChevronRight size={18} />
+          </button>
+        </div>
+        {#if day.slots.length}
+          <ul class="rows">
+            {#each day.slots as s (`${s.a.anime_id}:${s.t}`)}
+              <li>
+                <a class="row" class:out={s.out} href="#/anime/{s.a.anime_url}" use:prefetchAnime={s.a.anime_url}>
+                  <img src={img(s.a.poster?.small)} alt="" width="50" height="70" loading="lazy" />
+                  <span class="r-body">
+                    <span class="r-title">{s.a.title}</span>
+                    <span class="r-sub">
+                      {#if s.out}
+                        <Check size={14} /> {s.ep} серия вышла
+                      {:else}
+                        {s.ep} серия выйдет {until(s.t)}
+                      {/if}
+                    </span>
+                  </span>
+                  <span class="r-side">{hm(new Date(s.t * 1000))}</span>
+                </a>
+              </li>
+            {/each}
+          </ul>
+        {:else if !sched.data && !feed.data?.schedule.length}
+          <Loader small error={sched.error} retry={sched.retry} />
+        {:else}
+          <p class="hint">В этот день серий по расписанию нет</p>
+        {/if}
+      </section>
     </div>
 
     <section class="block">
@@ -315,38 +436,200 @@
   .remove:hover {
     background: var(--accent);
   }
+  /* «Обновления» и «Расписание» — две колонки одной высоты, у каждой свой скролл, как на сайте. */
   .cols {
     display: grid;
-    grid-template-columns: minmax(0, 1fr) 380px;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
     gap: 16px;
-    align-items: start;
   }
-  aside {
+  .side {
     display: flex;
     flex-direction: column;
-    gap: 16px;
+    height: 540px;
   }
-  ul {
-    list-style: none;
-    margin: 0;
-    padding: 0;
+  .block-title :global(.ico) {
+    flex: none;
+    margin-right: 7px;
   }
-  .updates li + li,
-  .today li + li {
-    border-top: 1px solid var(--line);
-  }
-  .updates a {
+  .block-title .more {
     display: grid;
-    grid-template-columns: 40px minmax(0, 1fr) 90px minmax(0, 180px) 90px;
-    align-items: center;
-    gap: 12px;
-    padding: 6px 14px;
+    place-items: center;
   }
-  .updates a:hover {
+  .rows {
+    flex: 1;
+    min-height: 0;
+    display: grid;
+    grid-template-columns: minmax(0, 1fr);
+    align-content: start;
+    gap: 10px;
+    margin: 0;
+    padding: 15px;
+    list-style: none;
+    overflow-y: auto;
+  }
+  .row {
+    display: flex;
+    align-items: center;
+    height: 70px;
+    border-radius: var(--radius);
+    background: var(--panel-3);
+    overflow: hidden;
+  }
+  .row:hover {
     background: var(--panel-2);
   }
-  .updates a:hover .u-title {
+  .row:hover .r-title {
     color: var(--accent);
+  }
+  .row img {
+    flex: none;
+    width: 50px;
+    height: 70px;
+    margin-right: 10px;
+    object-fit: cover;
+    border-radius: var(--radius-img);
+    background: var(--line);
+  }
+  .r-body {
+    flex: 1;
+    min-width: 0;
+    display: flex;
+    flex-direction: column;
+    gap: 5px;
+    padding: 10px 10px 10px 0;
+  }
+  .r-title,
+  .r-sub {
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+  .r-title {
+    font-weight: 600;
+  }
+  .r-sub {
+    font-size: 13px;
+    font-weight: 500;
+    color: var(--muted);
+  }
+  .r-side {
+    flex: none;
+    display: flex;
+    flex-direction: column;
+    align-items: flex-end;
+    margin: 0 15px 0 5px;
+    font-weight: 600;
+    font-variant-numeric: tabular-nums;
+  }
+  .r-date {
+    text-transform: capitalize;
+  }
+  /* Вышедшая серия остаётся в списке дня, но видно, что она уже есть. */
+  .row.out img {
+    opacity: 0.55;
+  }
+  .row.out .r-sub {
+    display: flex;
+    align-items: center;
+    gap: 4px;
+    color: var(--green);
+  }
+  .row.out .r-side {
+    color: var(--muted);
+  }
+  .week {
+    display: grid;
+    grid-template-columns: 22px minmax(0, 1fr) 22px;
+    align-items: end;
+    gap: 6px;
+    padding: 12px 10px 0;
+  }
+  .arrow {
+    display: grid;
+    place-items: center;
+    height: 60px;
+    border-radius: var(--radius-sm);
+    color: var(--muted);
+  }
+  .arrow:hover {
+    background: var(--panel-3);
+    color: var(--text);
+  }
+  .strip {
+    display: flex;
+    overflow-x: auto;
+    scrollbar-width: none;
+  }
+  .m-name {
+    display: block;
+    height: 20px;
+    font-size: 12px;
+    font-weight: 700;
+    text-transform: uppercase;
+    color: var(--text-2);
+  }
+  .m-days {
+    display: flex;
+    padding-top: 5px;
+  }
+  .day {
+    position: relative;
+    flex: none;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    width: 70px;
+    height: 60px;
+    margin-right: 10px;
+    border-radius: 15px;
+    background: var(--panel-3);
+    color: var(--text);
+  }
+  .day:hover {
+    background: var(--line);
+  }
+  .day.sel {
+    background: #6c6c6c;
+  }
+  .day.sel::after {
+    content: '';
+    position: absolute;
+    left: 16px;
+    right: 16px;
+    bottom: 0;
+    height: 3px;
+    border-radius: 3px 3px 0 0;
+    background: var(--green);
+  }
+  .day.past:not(.sel) .dn {
+    color: var(--muted);
+  }
+  .wd {
+    font-size: 14px;
+    font-weight: 600;
+  }
+  .wd.weekend {
+    color: var(--accent);
+  }
+  .dn {
+    font-size: 22px;
+    font-weight: 600;
+    line-height: 1.2;
+  }
+  .cnt {
+    position: absolute;
+    top: -5px;
+    right: -8px;
+    min-width: 19px;
+    height: 19px;
+    padding: 0 5px;
+    border-radius: 10px;
+    background: var(--green);
+    color: #fff;
+    font-size: 13px;
+    line-height: 19px;
+    text-align: center;
   }
   .expand {
     display: flex;
@@ -364,58 +647,6 @@
   .expand:hover {
     background: var(--panel-2);
     color: var(--accent);
-  }
-  .updates img {
-    width: 40px;
-    height: 56px;
-    object-fit: cover;
-    border-radius: var(--radius-sm);
-    background: var(--panel-2);
-  }
-  .u-title {
-    font-weight: 600;
-    white-space: nowrap;
-    overflow: hidden;
-    text-overflow: ellipsis;
-  }
-  .u-ep {
-    color: var(--green);
-    font-weight: 600;
-  }
-  .u-dub,
-  .u-time {
-    font-size: 12px;
-    color: var(--muted);
-    white-space: nowrap;
-    overflow: hidden;
-    text-overflow: ellipsis;
-  }
-  .u-time {
-    text-align: right;
-  }
-  .today a {
-    display: grid;
-    grid-template-columns: 44px minmax(0, 1fr) auto;
-    gap: 10px;
-    padding: 8px 14px;
-    align-items: center;
-  }
-  .today a:hover .t-title {
-    color: var(--accent);
-  }
-  .t-time {
-    color: var(--muted);
-    font-weight: 600;
-    font-variant-numeric: tabular-nums;
-  }
-  .t-title {
-    white-space: nowrap;
-    overflow: hidden;
-    text-overflow: ellipsis;
-  }
-  .t-ep {
-    font-size: 12px;
-    color: var(--muted);
   }
   .n-title {
     display: -webkit-box;
@@ -482,13 +713,7 @@
   }
   @media (max-width: 1150px) {
     .cols {
-      grid-template-columns: 1fr;
-    }
-    .updates a {
-      grid-template-columns: 40px minmax(0, 1fr) 80px 90px;
-    }
-    .u-dub {
-      display: none;
+      grid-template-columns: minmax(0, 1fr);
     }
   }
 </style>
