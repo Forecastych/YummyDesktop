@@ -228,7 +228,7 @@
     place-items: center;
     width: 34px;
     height: 34px;
-    border-radius: var(--radius);
+    border-radius: var(--radius-sm);
     color: var(--text-2);
   }
   .tool:hover,

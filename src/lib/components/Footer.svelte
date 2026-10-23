@@ -107,7 +107,7 @@
   .res a {
     display: inline-block;
     padding: 4px 10px;
-    border-radius: var(--radius);
+    border-radius: var(--radius-sm);
     background: var(--panel-2);
   }
   a {

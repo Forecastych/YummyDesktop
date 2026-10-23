@@ -136,7 +136,7 @@
     width: 34px;
     height: 48px;
     object-fit: cover;
-    border-radius: 2px;
+    border-radius: var(--radius-sm);
     flex: none;
     background: var(--panel-2);
   }

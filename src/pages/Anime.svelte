@@ -718,7 +718,7 @@
     gap: 8px;
   }
   .side :global(.poster) {
-    border-radius: var(--radius);
+    border-radius: var(--radius-img);
   }
   .colls {
     display: grid;
@@ -869,7 +869,7 @@
     padding: 0 8px;
     background: var(--panel-2);
     border: 1px solid var(--line);
-    border-radius: 3px;
+    border-radius: var(--radius-sm);
     font-size: 13px;
   }
   .ep:hover {

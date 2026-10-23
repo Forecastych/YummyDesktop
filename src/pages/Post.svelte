@@ -106,7 +106,7 @@
   .content :global(img) {
     height: auto;
     margin: 10px auto;
-    border-radius: var(--radius);
+    border-radius: var(--radius-img);
   }
   .content :global(iframe) {
     display: block;
@@ -115,7 +115,7 @@
     height: auto;
     margin: 12px 0;
     border: 0;
-    border-radius: var(--radius);
+    border-radius: var(--radius-img);
   }
   .content :global(a) {
     color: var(--accent);

@@ -336,7 +336,7 @@
     padding: 2px 8px;
     font-size: 12px;
     color: var(--muted);
-    border-radius: 3px;
+    border-radius: var(--radius-sm);
   }
   .tabs button.active {
     color: #fff;

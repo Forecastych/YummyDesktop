@@ -303,7 +303,7 @@
     align-items: center;
     justify-content: center;
     height: 60px;
-    border-radius: var(--radius);
+    border-radius: var(--radius-img);
     background: var(--panel-2) center / cover no-repeat;
     font-size: 12px;
   }

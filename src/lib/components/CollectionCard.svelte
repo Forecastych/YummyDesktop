@@ -60,7 +60,7 @@
     width: 120px;
     height: 170px;
     object-fit: cover;
-    border-radius: var(--radius);
+    border-radius: var(--radius-img);
     box-shadow: 0 4px 14px rgba(0, 0, 0, 0.6);
     transform: rotate(calc((var(--i) - 1) * 6deg));
     z-index: calc(3 - var(--i));
@@ -82,7 +82,7 @@
     place-items: center;
     width: 22px;
     height: 22px;
-    border-radius: 3px;
+    border-radius: var(--radius-sm);
     background: var(--overlay);
     color: var(--yellow);
   }

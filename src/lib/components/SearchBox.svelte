@@ -146,7 +146,7 @@
     height: 32px;
     background: var(--panel-2);
     border: 1px solid var(--line);
-    border-radius: var(--radius);
+    border-radius: var(--radius-sm);
   }
   .search:focus-within {
     border-color: var(--accent);
@@ -176,7 +176,7 @@
     margin-right: 8px;
     padding: 1px 5px;
     border: 1px solid var(--line);
-    border-radius: 3px;
+    border-radius: 4px;
     font-family: inherit;
     font-size: 11px;
     color: var(--muted);
@@ -209,7 +209,7 @@
     width: 100%;
     padding: 5px;
     text-align: left;
-    border-radius: 3px;
+    border-radius: var(--radius-sm);
   }
   .item.active {
     background: var(--panel-2);
@@ -218,7 +218,7 @@
     width: 36px;
     height: 50px;
     object-fit: cover;
-    border-radius: 2px;
+    border-radius: var(--radius-sm);
     background: var(--panel-2);
     flex: none;
   }

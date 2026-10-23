@@ -135,7 +135,7 @@
     width: 16px;
     height: 16px;
     border: 1px solid var(--line-2);
-    border-radius: 3px;
+    border-radius: 4px;
   }
   .box.on {
     background: var(--green);

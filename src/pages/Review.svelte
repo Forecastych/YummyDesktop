@@ -111,7 +111,7 @@
     flex: none;
     width: 120px;
     aspect-ratio: 2 / 3;
-    border-radius: var(--radius);
+    border-radius: var(--radius-img);
     overflow: hidden;
     background: var(--panel-3);
   }
@@ -183,7 +183,7 @@
     align-self: flex-start;
     min-width: 54px;
     padding: 10px;
-    border-radius: var(--radius);
+    border-radius: var(--radius-sm);
     background: var(--panel-3);
     color: #222;
     font-size: 22px;
@@ -200,7 +200,7 @@
     height: auto;
     max-width: 100%;
     margin: 10px auto;
-    border-radius: var(--radius);
+    border-radius: var(--radius-img);
   }
   .content :global(a) {
     color: var(--accent);

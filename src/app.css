@@ -33,7 +33,10 @@
   --green: #3cce7b;
   --yellow: #f2b800;
   --overlay: rgba(0, 0, 0, 0.8);
-  --radius: 4px;
+  /* Скругления как на сайте: панели и карточки, постеры, кнопки/поля/бейджи. */
+  --radius: 10px;
+  --radius-img: 8px;
+  --radius-sm: 6px;
   --header-h: 46px;
   --max: 1400px;
   color-scheme: dark;
@@ -156,7 +159,7 @@ img {
   gap: 6px;
   height: 36px;
   padding: 0 16px;
-  border-radius: var(--radius);
+  border-radius: var(--radius-sm);
   background: var(--panel);
   border: 1px solid var(--line);
   font-size: 13px;
@@ -200,7 +203,7 @@ img {
   height: 36px;
   width: 100%;
   padding: 0 12px;
-  border-radius: var(--radius);
+  border-radius: var(--radius-sm);
   background: var(--panel-2);
   border: 1px solid var(--line);
   outline: none;
@@ -222,7 +225,7 @@ img {
   align-items: center;
   height: 22px;
   padding: 0 8px;
-  border-radius: 3px;
+  border-radius: var(--radius-sm);
   background: var(--line);
   font-size: 11px;
   font-weight: 600;

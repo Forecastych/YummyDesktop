@@ -101,6 +101,22 @@
 {/snippet}
 
 <div class="container page">
+  <!-- Порядок блоков — как на главной сайта: сезон, история, дальше лента. -->
+  {#if feed.data}
+    {@const f = feed.data}
+    <section class="block">
+      <h2 class="block-title">
+        Аниме {SEASONS[f.top_carousel.season] ?? ''} {fullYear(f.top_carousel.year)}
+        <a class="more" href="#/catalog?status=ongoing">все онгоинги</a>
+      </h2>
+      <Row>
+        {#each f.top_carousel.items as a, i (a.anime_id)}
+          <AnimeCard anime={a} sub={ep(a)} eager={i < 8} />
+        {/each}
+      </Row>
+    </section>
+  {/if}
+
   {#if fresh.length}
     <section class="block">
       <h2 class="block-title">Вышли новые серии <a class="more" href="#/follows">все подписки</a></h2>
@@ -138,18 +154,6 @@
 
   {#if feed.data}
     {@const f = feed.data}
-    <section class="block">
-      <h2 class="block-title">
-        Аниме {SEASONS[f.top_carousel.season] ?? ''} {fullYear(f.top_carousel.year)}
-        <a class="more" href="#/catalog?status=ongoing">все онгоинги</a>
-      </h2>
-      <Row>
-        {#each f.top_carousel.items as a, i (a.anime_id)}
-          <AnimeCard anime={a} sub={ep(a)} eager={i < 8} />
-        {/each}
-      </Row>
-    </section>
-
     <div class="cols">
       <section class="block updates">
         <h2 class="block-title">Обновления аниме</h2>
@@ -300,7 +304,7 @@
     place-items: center;
     width: 22px;
     height: 22px;
-    border-radius: 3px;
+    border-radius: var(--radius-sm);
     background: var(--overlay);
     color: #fff;
     opacity: 0;
@@ -365,7 +369,7 @@
     width: 40px;
     height: 56px;
     object-fit: cover;
-    border-radius: 2px;
+    border-radius: var(--radius-sm);
     background: var(--panel-2);
   }
   .u-title {
@@ -460,7 +464,7 @@
   }
   .n-img {
     aspect-ratio: 16 / 9;
-    border-radius: var(--radius);
+    border-radius: var(--radius-img);
     overflow: hidden;
     background: var(--panel-2);
   }

@@ -58,7 +58,7 @@
     flex: none;
     width: 90px;
     aspect-ratio: 2 / 3;
-    border-radius: var(--radius);
+    border-radius: var(--radius-img);
     overflow: hidden;
     background: var(--panel-3);
   }
@@ -99,7 +99,7 @@
     margin-left: auto;
     min-width: 32px;
     padding: 2px 6px;
-    border-radius: var(--radius);
+    border-radius: var(--radius-sm);
     background: var(--panel-3);
     color: #222;
     font-weight: 700;

@@ -115,7 +115,7 @@
     width: 100%;
     aspect-ratio: 16 / 9;
     border: 0;
-    border-radius: 3px;
+    border-radius: var(--radius-img);
     background: #000;
   }
 </style>
