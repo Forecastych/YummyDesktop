@@ -23,6 +23,7 @@ tauri-plugin-notification = "2"
 tauri-plugin-opener = "2"
 tauri-plugin-window-state = "2"
 tauri-plugin-single-instance = "2"
+tauri-plugin-updater = "2"
 
 # Небольшой и быстрый релизный бинарник.
 [profile.release]

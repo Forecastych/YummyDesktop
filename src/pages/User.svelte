@@ -34,7 +34,7 @@
   })
 
   $effect(() => {
-    if (user.data) setTitle(`${user.data.nickname} — YummyDesktop`)
+    if (user.data) setTitle(user.data.nickname)
   })
 
   // ---- история просмотра: API отдаёт её только владельцу, так что показываем лишь в своём профиле ----

@@ -1,6 +1,7 @@
 <script lang="ts">
   import Footer from './lib/components/Footer.svelte'
   import Header from './lib/components/Header.svelte'
+  import UpdateBar from './lib/components/UpdateBar.svelte'
   import { isTauri, setFullscreen, setTitle } from './lib/native'
   import { back, match, route } from './lib/router.svelte'
   import { stepScale } from './lib/stores/settings.svelte'
@@ -60,7 +61,7 @@
 
   $effect(() => {
     if (anime || coll || video || user || review || blogger) return // заголовок ставит сама страница
-    setTitle(page?.title ? `${page.title} — YummyDesktop` : 'YummyDesktop')
+    setTitle(page?.title)
   })
 
   let fullscreen = false
@@ -90,6 +91,7 @@
 <svelte:window onkeydown={onKey} onmouseup={onMouse} />
 
 <Header />
+<UpdateBar />
 <main>
   {#key route.path}
     {#if anime}

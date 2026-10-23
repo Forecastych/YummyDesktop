@@ -43,7 +43,7 @@
   })
 
   $effect(() => {
-    if (studio.data) setTitle(`${studio.data.title} — YummyDesktop`)
+    if (studio.data) setTitle(studio.data.title)
   })
 </script>
 

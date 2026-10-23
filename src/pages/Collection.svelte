@@ -32,7 +32,7 @@
     c = { ...d }
     animes = d.animes
     done = d.animes.length < PAGE
-    setTitle(`${d.title} — YummyDesktop`)
+    setTitle(d.title)
   })
 
   async function more() {

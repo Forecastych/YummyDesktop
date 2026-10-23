@@ -71,7 +71,26 @@ export async function createCollection(input: CollectionInput): Promise<number> 
   const r = await Api.createCollection(input)
   invalidate()
   myCollections.loaded = false
-  await loadMine(true).catch(() => {})
+  try {
+    await loadMine(true)
+  } catch {
+    // Коллекция уже создана — ошибку не бросаем, иначе её создадут второй раз. Кладём её в список
+    // из того, что знаем; loaded остаётся false, и при следующем открытии список перечитается.
+    const p = auth.profile
+    if (p && !myCollections.list.some((c) => c.id === r.id)) {
+      myCollections.list.unshift({
+        id: r.id,
+        title: input.title,
+        description: input.description,
+        language: input.language ?? 'ru',
+        public: input.public,
+        create_date: Math.floor(Date.now() / 1000),
+        likes: { likes: 0, dislikes: 0 },
+        owner: { id: p.id, nickname: p.nickname, avatars: p.avatars },
+        animes: [],
+      })
+    }
+  }
   return r.id
 }
 

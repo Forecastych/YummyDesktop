@@ -57,7 +57,7 @@
 <header>
   <div class="inner container">
     <a class="logo" href="#/" aria-label="На главную">
-      <span class="mark">Y</span><span class="name">Yummy<b>Desktop</b></span>
+      <span class="mark">Y</span><span class="name">YummyAnime <b>Desktop</b></span>
     </a>
 
     <nav>
@@ -262,10 +262,13 @@
   .tools .btn {
     margin-left: 6px;
   }
-  @media (max-width: 1100px) {
+  /* Название с полным меню и поиском влезает примерно с 1300px — уже прячем его, а не обрезаем поиск. */
+  @media (max-width: 1320px) {
     .name {
       display: none;
     }
+  }
+  @media (max-width: 1100px) {
     .nav-item > a {
       padding: 0 8px;
       font-size: 12px;

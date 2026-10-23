@@ -184,7 +184,7 @@ fn setup_tray(app: &AppHandle<Wry>) -> tauri::Result<()> {
     app.manage(TrayNotify(notify));
 
     let mut tray = TrayIconBuilder::with_id("main")
-        .tooltip("YummyDesktop")
+        .tooltip("YummyAnime Desktop")
         .menu(&menu)
         .show_menu_on_left_click(false)
         .on_menu_event(|app, e| match e.id.as_ref() {
@@ -226,6 +226,7 @@ pub fn run() {
         .plugin(tauri_plugin_window_state::Builder::default().build())
         .plugin(tauri_plugin_notification::init())
         .plugin(tauri_plugin_opener::init())
+        .plugin(tauri_plugin_updater::Builder::new().build())
         .plugin(navigation_guard())
         .plugin(no_ads())
         .register_uri_scheme_protocol(CVH_SCHEME, |_ctx, req| cvh_protocol(req))

@@ -206,7 +206,7 @@
       }
       episode = ep || eps[0]?.number || ''
       seen(anime.anime_id, anime.episodes?.aired)
-      setTitle(`${anime.title} — YummyDesktop`)
+      setTitle(anime.title)
     })
   })
 

@@ -59,7 +59,7 @@
   }
 
   $effect(() => {
-    if (video.data) setTitle(`${video.data.title} — YummyDesktop`)
+    if (video.data) setTitle(video.data.title)
   })
 </script>
 

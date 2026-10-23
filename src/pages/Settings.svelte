@@ -1,7 +1,9 @@
 <script lang="ts">
+  import { RefreshCw } from '@lucide/svelte'
   import { clearCache } from '../lib/api/client'
-  import { openExternal } from '../lib/native'
+  import { isTauri, openExternal } from '../lib/native'
   import { settings, UI_SCALES } from '../lib/stores/settings.svelte'
+  import { checkUpdates, installUpdate, updates } from '../lib/stores/updates.svelte'
 
   let cleared = $state(false)
 
@@ -88,10 +90,27 @@
     <h2>О приложении</h2>
     <div class="about">
       <p>
-        <b>YummyDesktop {version}</b> — неофициальный десктоп-клиент для
+        <b>YummyAnime Desktop {version}</b> — неофициальный десктоп-клиент для
         <button class="link" onclick={() => openExternal('https://yummyani.me')}>YummyAnime</button>. Без рекламы,
         некоммерческий, с открытым исходным кодом.
       </p>
+      {#if isTauri}
+        <p class="update">
+          <button class="btn small" disabled={updates.checking || updates.progress !== null} onclick={checkUpdates}>
+            <RefreshCw size={14} /> Проверить обновления
+          </button>
+          {#if updates.checking}
+            <span class="muted">Проверяю…</span>
+          {:else if updates.error}
+            <span class="err">{updates.error}</span>
+          {:else if updates.version}
+            <span>Доступна версия {updates.version}</span>
+            <button class="btn small primary" disabled={updates.progress !== null} onclick={installUpdate}>Обновить</button>
+          {:else if updates.checked}
+            <span class="muted">Установлена последняя версия</span>
+          {/if}
+        </p>
+      {/if}
       <p class="muted">
         Весь контент, постеры и видео принадлежат сайту и правообладателям; приложение только показывает их через
         публичное API. История, подписки и настройки хранятся локально на этом компьютере.
@@ -176,5 +195,14 @@
   .link {
     color: var(--accent);
     text-decoration: underline;
+  }
+  .update {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 10px;
+  }
+  .err {
+    color: var(--accent);
   }
 </style>

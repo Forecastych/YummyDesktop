@@ -26,7 +26,12 @@
     try {
       await fn()
       note = { key, ok: true, text: done }
-      await reloadProfile().catch(() => {})
+      try {
+        await reloadProfile()
+      } catch (e) {
+        // Правка на сервере прошла — это не ошибка действия, но показанный профиль устарел.
+        note = { key, ok: true, text: `${done}. Профиль не обновился (${errorText(e)}) — откройте страницу заново.` }
+      }
       onchanged()
     } catch (e) {
       note = { key, ok: false, text: errorText(e) }

@@ -7,10 +7,12 @@ import { startFollowChecker } from './lib/stores/follows.svelte'
 import './lib/stores/history.svelte'
 import { startNotifications } from './lib/stores/notifications.svelte'
 import { startSmartBuilder } from './lib/stores/smart.svelte'
+import { startUpdateChecker } from './lib/stores/updates.svelte'
 
 initAuth()
 startFollowChecker()
 startNotifications()
 startSmartBuilder()
+startUpdateChecker()
 
 mount(App, { target: document.getElementById('app')! })

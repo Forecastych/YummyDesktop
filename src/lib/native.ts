@@ -41,7 +41,11 @@ export async function setZoom(factor: number) {
   }
 }
 
-export async function setTitle(title: string) {
+export const APP_NAME = 'YummyAnime Desktop'
+
+/** Заголовок окна: «<страница> — YummyAnime Desktop», без аргумента — просто название. */
+export async function setTitle(page?: string) {
+  const title = page ? `${page} — ${APP_NAME}` : APP_NAME
   if (isTauri) {
     const { getCurrentWindow } = await import('@tauri-apps/api/window')
     await getCurrentWindow().setTitle(title)

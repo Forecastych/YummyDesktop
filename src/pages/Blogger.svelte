@@ -86,7 +86,7 @@
   }
 
   $effect(() => {
-    if (blogger.data) setTitle(`${blogger.data.nickname} — видео блогера — YummyDesktop`)
+    if (blogger.data) setTitle(`${blogger.data.nickname} — видео блогера`)
   })
 </script>
 

@@ -82,7 +82,13 @@ export async function markRead(n: Notification) {
   if (n.viewed) return
   n.viewed = true
   notifs.unread = Math.max(0, notifs.unread - 1)
-  await Api.readNotification(n.id).catch(() => {})
+  try {
+    await Api.readNotification(n.id)
+  } catch {
+    // Сервер не отметил — возвращаем как было, иначе бейдж разойдётся с сайтом до следующего опроса.
+    n.viewed = false
+    notifs.unread++
+  }
 }
 
 export async function markAllRead() {

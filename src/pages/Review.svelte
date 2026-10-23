@@ -34,7 +34,7 @@
 
   $effect(() => {
     const r = review.data
-    if (r) setTitle(`Рецензия на «${r.anime?.title ?? 'аниме'}» — YummyDesktop`)
+    if (r) setTitle(`Рецензия на «${r.anime?.title ?? 'аниме'}»`)
   })
 
   function onClick(e: MouseEvent) {

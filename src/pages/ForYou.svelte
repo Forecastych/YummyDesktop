@@ -247,7 +247,7 @@
   <CollectionEditor
     heading="Сохранить подборку на сайт"
     submitText="Сохранить"
-    initial={{ title: defaultTitle, description: 'Собрано в YummyDesktop по моим спискам и оценкам.', public: false }}
+    initial={{ title: defaultTitle, description: 'Собрано в YummyAnime Desktop по моим спискам и оценкам.', public: false }}
     onsave={async (v) => {
       const id = await createCollection({ ...v, anime_ids: list.slice(0, Math.min(shown, 100)).map((c) => c.anime.anime_id) })
       go(`/collections/${id}`)

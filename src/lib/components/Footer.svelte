@@ -54,7 +54,7 @@
         {/each}
       </ul>
       <p class="note">
-        YummyDesktop — неофициальный клиент. Весь контент и аккаунты — на стороне YummyAnime.
+        YummyAnime Desktop — неофициальный клиент. Весь контент и аккаунты — на стороне YummyAnime.
       </p>
     </div>
     {#each cols as c (c.title)}

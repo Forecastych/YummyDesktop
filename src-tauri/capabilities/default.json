@@ -11,6 +11,7 @@
     "core:webview:allow-set-webview-zoom",
     "notification:default",
     "opener:allow-open-url",
-    "window-state:default"
+    "window-state:default",
+    "updater:default"
   ]
 }
