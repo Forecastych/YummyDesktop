@@ -31,6 +31,16 @@ export async function setFullscreen(on: boolean) {
   await getCurrentWindow().setFullscreen(on)
 }
 
+/** Масштаб всего интерфейса. В Tauri — zoom самого webview (вместе с iframe плеера), в браузере — CSS zoom. */
+export async function setZoom(factor: number) {
+  if (isTauri) {
+    const { getCurrentWebview } = await import('@tauri-apps/api/webview')
+    await getCurrentWebview().setZoom(factor)
+  } else {
+    document.documentElement.style.zoom = String(factor)
+  }
+}
+
 export async function setTitle(title: string) {
   if (isTauri) {
     const { getCurrentWindow } = await import('@tauri-apps/api/window')

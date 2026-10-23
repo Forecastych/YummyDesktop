@@ -1,7 +1,7 @@
 <script lang="ts">
   import { clearCache } from '../lib/api/client'
   import { openExternal } from '../lib/native'
-  import { settings } from '../lib/stores/settings.svelte'
+  import { settings, UI_SCALES } from '../lib/stores/settings.svelte'
 
   let cleared = $state(false)
 
@@ -55,6 +55,17 @@
         <option value="en">English</option>
       </select>
     </label>
+    <label class="row">
+      <span class="text">
+        <span>Масштаб интерфейса</span>
+        <small>Ctrl+= и Ctrl+− — крупнее и мельче, Ctrl+0 — по умолчанию.</small>
+      </span>
+      <select class="select narrow" bind:value={settings.uiScale}>
+        {#each UI_SCALES as s (s)}
+          <option value={s}>{Math.round(s * 100)}%{s === 1.2 ? ' (по умолчанию)' : ''}</option>
+        {/each}
+      </select>
+    </label>
     {@render toggle('dataSaver', 'Экономия трафика', 'Постеры в меньшем разрешении.')}
     {@render toggle('reduceMotion', 'Без анимаций')}
     <div class="row">
@@ -85,7 +96,7 @@
         Весь контент, постеры и видео принадлежат сайту и правообладателям; приложение только показывает их через
         публичное API. История, подписки и настройки хранятся локально на этом компьютере.
       </p>
-      <p class="muted">Горячие клавиши: Ctrl+K или / — поиск, Alt+← — назад, F11 — полный экран.</p>
+      <p class="muted">Горячие клавиши: Ctrl+K или / — поиск, Alt+← — назад, F11 — полный экран, Ctrl+= / Ctrl+− / Ctrl+0 — масштаб.</p>
     </div>
   </section>
 </div>

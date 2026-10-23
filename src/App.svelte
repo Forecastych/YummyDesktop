@@ -3,6 +3,7 @@
   import Header from './lib/components/Header.svelte'
   import { isTauri, setFullscreen, setTitle } from './lib/native'
   import { back, match, route } from './lib/router.svelte'
+  import { stepScale } from './lib/stores/settings.svelte'
   import Anime from './pages/Anime.svelte'
   import Blogger from './pages/Blogger.svelte'
   import Catalog from './pages/Catalog.svelte'
@@ -71,6 +72,9 @@
       e.preventDefault()
       fullscreen = !fullscreen
       setFullscreen(fullscreen)
+    } else if (e.ctrlKey && !e.altKey && ['=', '+', '-', '0'].includes(e.key)) {
+      e.preventDefault()
+      stepScale(e.key === '0' ? 0 : e.key === '-' ? -1 : 1)
     }
   }
 
