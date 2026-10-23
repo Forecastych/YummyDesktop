@@ -1,6 +1,6 @@
 [package]
 name = "yummi-desktop"
-version = "0.2.0"
+version = "0.2.0-a"
 description = "Unofficial desktop client for YummyAnime"
 authors = ["YummyDesktop contributors"]
 license = "UNLICENSED"
