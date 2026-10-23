@@ -1,10 +1,12 @@
 <script lang="ts">
   import { ChevronLeft, ChevronRight } from '@lucide/svelte'
   import type { Snippet } from 'svelte'
+  import { glideBy, wheelScroll } from '../wheel'
 
   // Горизонтальная лента карточек со стрелками, как карусель сезона на сайте.
   let { children, itemWidth = 168 }: { children: Snippet; itemWidth?: number } = $props()
 
+  const GAP = 10
   let track: HTMLDivElement
   let canLeft = $state(false)
   let canRight = $state(true)
@@ -15,8 +17,10 @@
     canRight = track.scrollLeft + track.clientWidth < track.scrollWidth - 4
   }
 
+  // Шаг стрелки — целое число карточек, чтобы лента вставала ровно по краю карточки.
   function scroll(dir: number) {
-    track.scrollBy({ left: dir * track.clientWidth * 0.85, behavior: 'smooth' })
+    const card = itemWidth + GAP
+    glideBy(track, dir * Math.max(1, Math.floor((track.clientWidth * 0.85) / card)) * card)
   }
 
   $effect(() => {
@@ -28,7 +32,7 @@
 </script>
 
 <div class="row" style:--w="{itemWidth}px">
-  <div class="track" bind:this={track} onscroll={update}>
+  <div class="track" bind:this={track} use:wheelScroll onscroll={update}>
     {@render children()}
   </div>
   {#if canLeft}
@@ -50,15 +54,11 @@
     gap: 10px;
     padding: 10px;
     overflow-x: auto;
-    scroll-snap-type: x proximity;
     scrollbar-width: none;
     overscroll-behavior-x: contain;
   }
   .track::-webkit-scrollbar {
     display: none;
-  }
-  .track > :global(*) {
-    scroll-snap-align: start;
   }
   .arrow {
     position: absolute;

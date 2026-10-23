@@ -17,6 +17,7 @@
   import { go, link, route } from '../lib/router.svelte'
   import { richText } from '../lib/sanitize'
   import { auth } from '../lib/stores/auth.svelte'
+  import { wheelScroll } from '../lib/wheel'
 
   // own — свой профиль (/profile): плюс кнопка выхода.
   let { id, own = false, onlogout }: { id: number; own?: boolean; onlogout?: () => void } = $props()
@@ -210,7 +211,7 @@
       <section class="block">
         <h2 class="block-title">Активность за полгода</h2>
         {#if heat}
-          <div class="heat-wrap">
+          <div class="heat-wrap" use:wheelScroll>
             <div class="heat">
               {#each { length: heat.lead }, i (i)}<i class="pad"></i>{/each}
               {#each heat.cells as c (c.when)}
