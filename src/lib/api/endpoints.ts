@@ -333,8 +333,6 @@ export const Api = {
   notifications: (offset = 0, limit = 30) =>
     api<Notification[]>('/profile/notifications', { query: { offset, limit }, ttl: 0 }),
 
-  notificationCounts: () => api<{ type: string; count: number }[]>('/profile/notifications/counts', { ttl: 0 }),
-
   readNotifications: () => api<unknown>('/profile/notifications/read', { method: 'POST' }),
 
   readNotification: (id: number) => api<unknown>(`/profile/notifications/${id}/read`, { method: 'POST' }),

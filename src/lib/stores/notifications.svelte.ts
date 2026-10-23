@@ -53,8 +53,9 @@ async function poll() {
     notifs.unread = 0
     return
   }
-  const counts = await Api.notificationCounts()
-  const unread = Array.isArray(counts) ? counts.reduce((n, c) => n + (Number(c.count) || 0), 0) : 0
+  // Непрочитанные — только в профиле (по нему же колокольчик сайта). /notifications/counts
+  // считает уведомления по типам для вкладок и после «Прочитать все» не обнуляется.
+  const unread = Number((await Api.profile()).notifications?.count) || 0
   const changed = unread !== notifs.unread
   notifs.unread = unread
   if (lastId && (!unread || !changed)) return

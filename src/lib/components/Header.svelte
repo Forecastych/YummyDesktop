@@ -91,7 +91,7 @@
         class:active={section === '/follows' || section === '/notifications'}
       >
         <Bell size={18} />
-        {#if fresh}<span class="dot">{fresh}</span>{/if}
+        {#if fresh}<span class="dot">{fresh > 99 ? '99+' : fresh}</span>{/if}
       </a>
       <a class="tool" href="#/settings" title="Настройки" class:active={section === '/settings'}>
         <Settings size={18} />

@@ -231,33 +231,6 @@
     {@const f = feed.data}
     <div class="cols">
       <section class="block side">
-        <h2 class="block-title"><Clapperboard size={17} class="ico" /> Обновления аниме</h2>
-        <ul class="rows">
-          {#each f.new_videos as v (v.video_id)}
-            <li>
-              <a
-                class="row"
-                href="#/anime/{v.anime_url}?ep={encodeURIComponent(v.ep_title)}"
-                use:prefetchAnime={v.anime_url}
-              >
-                <img src={img(v.poster?.small)} alt="" width="50" height="70" loading="lazy" />
-                <span class="r-body">
-                  <span class="r-title">{v.title}</span>
-                  <span class="r-sub">
-                    Добавлена {v.ep_title} серия ({[v.dub_title, v.player_title].filter(Boolean).join(', ')})
-                  </span>
-                </span>
-                <span class="r-side">
-                  <span class="r-date">{dayMonth(v.date)}</span>
-                  {hm(new Date(v.date * 1000))}
-                </span>
-              </a>
-            </li>
-          {/each}
-        </ul>
-      </section>
-
-      <section class="block side">
         <h2 class="block-title">
           <CalendarDays size={17} class="ico" /> Расписание онгоингов
           <a class="more" href="#/schedule" title="Всё расписание" aria-label="Всё расписание">
@@ -321,6 +294,33 @@
         {:else}
           <p class="hint">В этот день серий по расписанию нет</p>
         {/if}
+      </section>
+
+      <section class="block side">
+        <h2 class="block-title"><Clapperboard size={17} class="ico" /> Обновления аниме</h2>
+        <ul class="rows">
+          {#each f.new_videos as v (v.video_id)}
+            <li>
+              <a
+                class="row"
+                href="#/anime/{v.anime_url}?ep={encodeURIComponent(v.ep_title)}"
+                use:prefetchAnime={v.anime_url}
+              >
+                <img src={img(v.poster?.small)} alt="" width="50" height="70" loading="lazy" />
+                <span class="r-body">
+                  <span class="r-title">{v.title}</span>
+                  <span class="r-sub">
+                    Добавлена {v.ep_title} серия ({[v.dub_title, v.player_title].filter(Boolean).join(', ')})
+                  </span>
+                </span>
+                <span class="r-side">
+                  <span class="r-date">{dayMonth(v.date)}</span>
+                  {hm(new Date(v.date * 1000))}
+                </span>
+              </a>
+            </li>
+          {/each}
+        </ul>
       </section>
     </div>
 
@@ -436,7 +436,7 @@
   .remove:hover {
     background: var(--accent);
   }
-  /* «Обновления» и «Расписание» — две колонки одной высоты, у каждой свой скролл, как на сайте. */
+  /* «Расписание» и «Обновления» — две колонки одной высоты, у каждой свой скролл, как на сайте. */
   .cols {
     display: grid;
     grid-template-columns: repeat(2, minmax(0, 1fr));
