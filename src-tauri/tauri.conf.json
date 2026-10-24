@@ -1,7 +1,7 @@
 {
   "$schema": "../node_modules/@tauri-apps/cli/config.schema.json",
   "productName": "YummyAnime Desktop",
-  "version": "0.3.2",
+  "version": "0.3.3",
   "identifier": "io.github.yummidesktop",
   "build": {
     "frontendDist": "../dist",
@@ -34,7 +34,7 @@
         "img-src": "'self' https: data: blob: http://yimg.localhost yimg:",
         "media-src": "'self' https:",
         "font-src": "'self' data:",
-        "connect-src": "'self' ipc: http://ipc.localhost https://api.yani.tv",
+        "connect-src": "'self' ipc: http://ipc.localhost https://api.yani.tv wss://socket1.yani.tv wss://socket2.yani.tv wss://socket3.yani.tv",
         "frame-src": "https: http://cvh.localhost cvh:"
       }
     }

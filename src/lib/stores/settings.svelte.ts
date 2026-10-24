@@ -15,6 +15,12 @@ export interface Settings {
   playerMuted: boolean
   /** Системные уведомления: новые серии из «Подписок» и уведомления сайта. Дублируется галочкой в трее. */
   notifyEpisodes: boolean
+  /** Уведомление Windows о личном сообщении, если окно не в фокусе или открыт другой диалог. */
+  notifyMessages: boolean
+  /** Статус «Смотрит …» в Discord. */
+  discordRpc: boolean
+  /** ID приложения Discord (Developer Portal). Пусто — берётся из сборки. */
+  discordClientId: string
   /** Крестик прячет окно в трей — приложение продолжает работать и присылать уведомления. */
   closeToTray: boolean
   /** Последняя выбранная озвучка — подставляется в новых тайтлах, если есть. */
@@ -41,6 +47,9 @@ const defaults: Settings = {
   playerVolume: 1,
   playerMuted: false,
   notifyEpisodes: true,
+  notifyMessages: true,
+  discordRpc: true,
+  discordClientId: '',
   closeToTray: true,
   preferredDubbing: '',
   preferredPlayer: '',

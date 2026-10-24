@@ -13,7 +13,7 @@
 </script>
 
 <script lang="ts">
-  import { Check, Maximize, Minimize, Pause, Play, Settings, SkipForward, Volume1, Volume2, VolumeX } from '@lucide/svelte'
+  import { Check, Maximize, Minimize, Pause, PictureInPicture2, Play, Settings, SkipForward, Volume1, Volume2, VolumeX } from '@lucide/svelte'
   import type { Skip } from '../api/types'
   import { duration as fmt } from '../format'
   import { settings } from '../stores/settings.svelte'
@@ -24,6 +24,8 @@
     ed: Skip | null | undefined
     hasNext: boolean
     fs: boolean
+    /** Окно сжато до мини-плеера поверх остальных. */
+    mini: boolean
     onToggle: () => void
     onSeek: (t: number) => void
     onVolume: (v: number) => void
@@ -31,8 +33,9 @@
     onRate: (r: number) => void
     onFullscreen: () => void
     onNext: () => void
+    onMini: () => void
   }
-  let { st, op, ed, hasNext, fs, onToggle, onSeek, onVolume, onMute, onRate, onFullscreen, onNext }: Props = $props()
+  let { st, op, ed, hasNext, fs, mini, onToggle, onSeek, onVolume, onMute, onRate, onFullscreen, onNext, onMini }: Props = $props()
 
   const RATES = [0.5, 0.75, 1, 1.25, 1.5, 2]
   const HIDE_AFTER = 2500
@@ -171,6 +174,9 @@
         break
       case 'KeyF':
         onFullscreen()
+        break
+      case 'KeyI':
+        onMini()
         break
       case 'KeyM':
         onMute(!st.muted)
@@ -318,6 +324,9 @@
         <button class="btn glass gear" class:spun={menuOpen} title="Настройки" onclick={() => (menuOpen = !menuOpen)}>
           <Settings size={20} />
           {#if st.rate !== 1}<span class="badge">{st.rate}×</span>{/if}
+        </button>
+        <button class="btn glass" class:on={mini} title={mini ? 'Вернуть окно (i)' : 'Мини-плеер поверх окон (i)'} onclick={onMini}>
+          <PictureInPicture2 size={20} />
         </button>
         <button class="btn glass" title={fs ? 'Выйти из полноэкранного режима (f)' : 'Во весь экран (f)'} onclick={onFullscreen}>
           {#if fs}<Minimize size={20} />{:else}<Maximize size={20} />{/if}
@@ -526,6 +535,21 @@
   }
   .btn:active {
     transform: scale(0.92);
+  }
+  .btn.on {
+    color: var(--accent);
+  }
+  /* Мини-плеер: окно 480×270, кнопки поменьше, без названия главы. */
+  :global(html.mini) .btn {
+    width: 36px;
+    height: 36px;
+  }
+  :global(html.mini) .glass.time,
+  :global(html.mini) .vol {
+    height: 36px;
+  }
+  :global(html.mini) .chap {
+    display: none;
   }
   .glass.time,
   .vol {

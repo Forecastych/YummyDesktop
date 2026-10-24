@@ -178,6 +178,7 @@ html.yd-bare * { visibility: hidden !important; }
       pending = false
       const v = video
       if (!v) return
+      syncSession(v)
       up({
         ev: 'state',
         paused: v.paused,
@@ -193,6 +194,55 @@ html.yd-bare * { visibility: hidden !important; }
   }
   const onEnded = () => up({ ev: 'ended' })
 
+  // ---- медиаклавиши и плитка Windows: MediaSession того фрейма, где играет <video> ----
+
+  /** Что показывать в плитке; присылает приложение командой meta. */
+  let meta = null
+
+  function seekBy(dt) {
+    const v = video
+    if (v) v.currentTime = Math.max(0, Math.min(v.currentTime + dt, Number.isFinite(v.duration) ? v.duration : Infinity))
+  }
+
+  function applyMeta() {
+    const ms = navigator.mediaSession
+    if (!ms || !video || !meta) return
+    try {
+      ms.metadata = new MediaMetadata({
+        title: meta.title || '',
+        artist: meta.artist || '',
+        album: 'YummyAnime',
+        artwork: meta.artwork ? [{ src: meta.artwork }] : [],
+      })
+    } catch {}
+    const set = (action, handler) => {
+      try {
+        ms.setActionHandler(action, handler)
+      } catch {}
+    }
+    set('play', () => play())
+    set('pause', () => video?.pause())
+    set('seekbackward', (d) => seekBy(-(d.seekOffset || 10)))
+    set('seekforward', (d) => seekBy(d.seekOffset || 10))
+    set('seekto', (d) => {
+      if (video && Number.isFinite(d.seekTime)) video.currentTime = Math.max(0, d.seekTime)
+    })
+    // Следующую серию переключает приложение — у фрейма нет списка серий.
+    set('nexttrack', meta.next ? () => up({ ev: 'media', action: 'nexttrack' }) : null)
+  }
+
+  function syncSession(v) {
+    const ms = navigator.mediaSession
+    if (!ms || !meta) return
+    ms.playbackState = v.paused ? 'paused' : 'playing'
+    const dur = v.duration
+    if (Number.isFinite(dur) && dur > 0) {
+      try {
+        ms.setPositionState({ duration: dur, position: Math.min(v.currentTime || 0, dur), playbackRate: v.playbackRate || 1 })
+      } catch {}
+    }
+  }
+
   function adopt(v) {
     if (video === v) return
     if (video) {
@@ -203,6 +253,7 @@ html.yd-bare * { visibility: hidden !important; }
     for (const e of EVENTS) v.addEventListener(e, report)
     v.addEventListener('ended', onEnded)
     show(v)
+    applyMeta()
     post(window.parent, { ev: 'video' })
     report()
   }
@@ -270,6 +321,10 @@ html.yd-bare * { visibility: hidden !important; }
         break
       case 'rate':
         if (v && Number.isFinite(d.v)) v.playbackRate = d.v
+        break
+      case 'meta':
+        meta = d
+        applyMeta()
         break
       case 'reveal':
         // Своими кнопками управлять не вышло — возвращаем плееру его родной интерфейс.

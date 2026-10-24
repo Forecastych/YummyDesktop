@@ -4,6 +4,10 @@
   import { imgCacheClear, imgCacheStats, isTauri, openExternal, type ImgCacheStats } from '../lib/native'
   import { GLASS_CLARITY, IMAGE_CACHE_SIZES, settings, UI_SCALES } from '../lib/stores/settings.svelte'
   import { checkUpdates, installUpdate, updates } from '../lib/stores/updates.svelte'
+  import { auth } from '../lib/stores/auth.svelte'
+  import { errorText } from '../lib/query.svelte'
+  import { planImport, runImport, type ImportPlan } from '../lib/shikiImport'
+  import { LISTS } from '../lib/api/types'
 
   let cleared = $state(false)
   let images: ImgCacheStats | null = $state(null)
@@ -38,9 +42,53 @@
   }
 
   const version = __APP_VERSION__
+  const builtInDiscord = !!import.meta.env.VITE_DISCORD_CLIENT_ID
+
+  // ---- импорт с Shikimori ----
+  let shikiUser = $state('')
+  const linkedShiki = $derived(auth.profile?.ids?.shikimori)
+  let plan: ImportPlan | null = $state(null)
+  let importBusy = $state('')
+  let importError = $state('')
+  let imported = $state(-1)
+
+  async function findShiki() {
+    const user = shikiUser.trim() || String(linkedShiki?.id ?? '')
+    if (!user) return
+    importError = ''
+    imported = -1
+    plan = null
+    importBusy = 'Читаю список Shikimori…'
+    try {
+      plan = await planImport(user, (done, total) => (importBusy = `Ищу тайтлы на YummyAnime: ${done} из ${total}`))
+    } catch (e) {
+      importError = errorText(e)
+    } finally {
+      importBusy = ''
+    }
+  }
+
+  async function confirmImport() {
+    const uid = auth.profile?.id
+    if (!plan || !uid) return
+    const items = plan.items
+    importError = ''
+    try {
+      importBusy = 'Добавляю…'
+      imported = await runImport(uid, items, (done) => (importBusy = `Добавляю: ${done} из ${items.length}`))
+      plan = null
+    } catch (e) {
+      importError = errorText(e)
+    } finally {
+      importBusy = ''
+    }
+  }
+
+  const byList = (p: ImportPlan) =>
+    LISTS.map((l) => ({ title: l.title, n: p.items.filter((x) => x.list === l.id).length })).filter((x) => x.n)
 </script>
 
-{#snippet toggle(key: 'autoSkipOpening' | 'autoSkipEnding' | 'autoNext' | 'resume' | 'notifyEpisodes' | 'closeToTray' | 'dataSaver' | 'reduceMotion', title: string, hint = '')}
+{#snippet toggle(key: 'autoSkipOpening' | 'autoSkipEnding' | 'autoNext' | 'resume' | 'notifyEpisodes' | 'notifyMessages' | 'closeToTray' | 'dataSaver' | 'reduceMotion' | 'discordRpc', title: string, hint = '')}
   <label class="row">
     <span class="text">
       <span>{title}</span>
@@ -62,7 +110,71 @@
 
     <h2>Уведомления</h2>
     {@render toggle('notifyEpisodes', 'Уведомления Windows', 'Новые серии из «Подписок» и уведомления сайта (ответы, лайки, друзья). То же, что галочка в меню трея.')}
+    {@render toggle('notifyMessages', 'Уведомления о личных сообщениях', 'Пока окно открыто на этом диалоге, уведомлений о нём нет.')}
     {@render toggle('closeToTray', 'Сворачивать в трей при закрытии', 'Крестик прячет окно, приложение работает в фоне. Выйти — правой кнопкой по значку в трее.')}
+
+    {#if isTauri}
+      <h2>Discord</h2>
+      {@render toggle('discordRpc', 'Статус «Смотрит» в Discord', 'Название, серия и сколько осталось. Нужен запущенный Discord на этом компьютере.')}
+      {#if settings.discordRpc}
+        <label class="row">
+          <span class="text">
+            <span>Application ID</span>
+            <small>
+              {builtInDiscord ? 'Пусто — встроенный в сборку.' : 'В сборке своего нет — создайте приложение на discord.com/developers и вставьте его Application ID.'}
+              От названия приложения зависит надпись «Смотрит …».
+            </small>
+          </span>
+          <input class="input narrow" type="text" inputmode="numeric" spellcheck="false" placeholder={builtInDiscord ? 'встроенный' : 'не задан'} bind:value={settings.discordClientId} />
+        </label>
+      {/if}
+    {/if}
+
+    {#if isTauri && auth.profile}
+      <h2>Импорт</h2>
+      <div class="row import">
+        <span class="text">
+          <span>Списки с Shikimori</span>
+          <small>
+            Тайтлы из «Смотрю», «В планах», «Просмотрено», «Брошено» и «Отложено» с оценками. То, что уже есть в
+            ваших списках, не трогаем.
+          </small>
+        </span>
+        <span class="narrow import-form">
+          <input
+            class="input"
+            type="text"
+            spellcheck="false"
+            placeholder={linkedShiki ? `${linkedShiki.nickname} (привязан)` : 'ник или id на Shikimori'}
+            bind:value={shikiUser}
+            onkeydown={(e) => e.key === 'Enter' && findShiki()}
+          />
+          <button class="btn small" disabled={!!importBusy || (!shikiUser.trim() && !linkedShiki)} onclick={findShiki}>Найти</button>
+        </span>
+      </div>
+      {#if importBusy || importError || plan || imported >= 0}
+        <div class="import-result">
+          {#if importBusy}
+            <span class="muted">{importBusy}</span>
+          {:else if importError}
+            <span class="err">{importError}</span>
+          {:else if plan}
+            <p>
+              На Shikimori {plan.total}. Новых для YummyAnime — <b>{plan.items.length}</b>{#if plan.already}, уже в списках — {plan.already}{/if}{#if plan.missing}, нет на сайте — {plan.missing}{/if}.
+            </p>
+            {#if plan.items.length}
+              <p class="muted">{byList(plan).map((x) => `${x.title}: ${x.n}`).join(' · ')}</p>
+              <p class="update">
+                <button class="btn small primary" onclick={confirmImport}>Добавить {plan.items.length}</button>
+                <button class="btn small" onclick={() => (plan = null)}>Отмена</button>
+              </p>
+            {/if}
+          {:else}
+            <span>Готово: добавлено {imported}.</span>
+          {/if}
+        </div>
+      {/if}
+    {/if}
 
     <h2>Интерфейс и трафик</h2>
     <label class="row">
@@ -297,5 +409,23 @@
   }
   .err {
     color: var(--accent);
+  }
+  .import {
+    cursor: default;
+  }
+  .import-form {
+    display: flex;
+    gap: 8px;
+  }
+  .import-form .input {
+    flex: 1;
+    min-width: 0;
+  }
+  .import-result {
+    padding: 10px 18px;
+    border-bottom: 1px solid var(--line);
+  }
+  .import-result p {
+    margin: 4px 0;
   }
 </style>

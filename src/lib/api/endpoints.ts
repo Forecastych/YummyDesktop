@@ -12,10 +12,12 @@ import type {
   Friend,
   FriendList,
   GenreList,
+  Dialog,
   LastWatch,
   Likes,
   LinkedService,
   ListedAnime,
+  Message,
   ListId,
   ListTime,
   Post,
@@ -51,6 +53,8 @@ export interface AnimeFilter {
   sort?: 'title' | 'year' | 'rating' | 'rating_counters' | 'views' | 'top' | 'random' | 'id'
   sort_forward?: boolean
   ids?: number[]
+  /** Подбор по id Шикимори (ответ содержит remote_ids.shikimori_id). */
+  shikimori_ids?: number[]
   studio_ids?: number[]
   offset?: number
   limit?: number
@@ -256,7 +260,7 @@ export const Api = {
   user: (id: number, o: Sig = {}) => api<User>(`/users/id${id}`, { ttl: MIN, ...o }),
 
   /** Все списки разом: в каждом элементе есть user.list — так считаются вкладки. */
-  userLists: (id: number, o: Sig = {}) => api<ListedAnime[]>(`/users/${id}/lists`, { ttl: MIN, ...o }),
+  userLists: (id: number, o: Sig & Pick<RequestOptions, 'ttl'> = {}) => api<ListedAnime[]>(`/users/${id}/lists`, { ttl: MIN, ...o }),
 
   userStats: async (id: number, o: Sig = {}): Promise<UserStats> => {
     const opt = { ttl: 10 * MIN, ...o }
@@ -299,6 +303,10 @@ export const Api = {
   setList: (id: number, list: ListId) =>
     api<unknown>(`/anime/${id}/list`, { method: 'PUT', body: { list, date: Math.floor(Date.now() / 1000) } }),
 
+  /** Пачкой в списки (импорт): list и rate на каждый тайтл. */
+  addToLists: (uid: number, animes: { id: number; list: ListId; rate?: number }[]) =>
+    api<unknown>(`/users/${uid}/lists`, { method: 'POST', body: { animes } }),
+
   removeFromList: (id: number) => api<unknown>(`/anime/${id}/list`, { method: 'DELETE' }),
 
   setFav: (id: number, fav: boolean) => api<unknown>(`/anime/${id}/list/fav`, { method: fav ? 'PUT' : 'DELETE' }),
@@ -340,4 +348,18 @@ export const Api = {
   deleteNotification: (id: number) => api<unknown>(`/profile/notifications/${id}`, { method: 'DELETE' }),
 
   clearNotifications: () => api<unknown>('/profile/notifications', { method: 'DELETE' }),
+
+  // ---- личные сообщения ----
+
+  dialogs: (offset = 0, limit = 30) =>
+    api<{ dialogs: Dialog[] }>('/dialogs', { query: { offset, limit }, ttl: 0 }),
+
+  /** Последние сообщения диалога; startFrom — id самого старого из уже загруженных. */
+  dialogMessages: (userId: number, startFrom?: number, limit = 50) =>
+    api<Message[]>(`/dialogs/${userId}/messages`, { query: { limit, start_from: startFrom }, ttl: 0 }),
+
+  sendMessage: (userId: number, message: string, answerTo?: number) =>
+    api<Message>(`/dialogs/${userId}/messages`, { method: 'POST', body: { message, answer_msg_id: answerTo ?? null } }),
+
+  readDialog: (userId: number) => api<unknown>(`/dialogs/${userId}/messages/read`, { method: 'POST' }),
 }

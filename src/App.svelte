@@ -15,6 +15,7 @@
   import Follows from './pages/Follows.svelte'
   import ForYou from './pages/ForYou.svelte'
   import History from './pages/History.svelte'
+  import Messages from './pages/Messages.svelte'
   import Notifications from './pages/Notifications.svelte'
   import Home from './pages/Home.svelte'
   import Login from './pages/Login.svelte'
@@ -46,6 +47,7 @@
     '/history': { page: History, title: 'История' },
     '/follows': { page: Follows, title: 'Подписки' },
     '/notifications': { page: Notifications, title: 'Уведомления' },
+    '/messages': { page: Messages },
     '/settings': { page: Settings, title: 'Настройки' },
     '/login': { page: Login, title: 'Вход' },
     '/profile': { page: Profile, title: 'Профиль' },
@@ -59,10 +61,11 @@
   const review = $derived(match('/reviews/:id', route.path))
   const studio = $derived(match('/studio/:slug', route.path))
   const blogger = $derived(match('/bloggers/:id', route.path))
+  const dialog = $derived(match('/messages/:id', route.path))
   const page = $derived(STATIC[route.path])
 
   $effect(() => {
-    if (anime || coll || video || user || review || blogger) return // заголовок ставит сама страница
+    if (anime || coll || video || user || review || blogger || dialog || route.path === '/messages') return // заголовок ставит сама страница
     setTitle(page?.title)
   })
 
@@ -112,6 +115,8 @@
       <Studio slug={studio.slug} />
     {:else if blogger}
       <Blogger id={Number(blogger.id)} />
+    {:else if dialog}
+      <Messages peer={Number(dialog.id)} />
     {:else if page}
       <page.page />
     {:else}

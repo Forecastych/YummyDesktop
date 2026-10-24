@@ -1,12 +1,13 @@
 <script lang="ts">
   import { untrack } from 'svelte'
-  import { Play, SkipForward } from '@lucide/svelte'
+  import { Maximize2, Play, SkipForward } from '@lucide/svelte'
   import { img } from '../api/client'
   import { Api } from '../api/endpoints'
   import type { AnimeShort, Video } from '../api/types'
   import { duration as fmt } from '../format'
-  import { cvhPlayerUrl, isTauri, onNative, setFullscreen } from '../native'
+  import { cvhPlayerUrl, isTauri, miniPlayer, onNative, setFullscreen } from '../native'
   import { auth } from '../stores/auth.svelte'
+  import { presence } from '../stores/discord.svelte'
   import { progressOf, setProgress, touch } from '../stores/history.svelte'
   import { settings } from '../stores/settings.svelte'
   import PlayerControls, { type VideoState } from './PlayerControls.svelte'
@@ -30,6 +31,7 @@
 
   $effect(() => {
     const un = onNative('tray-hidden', () => {
+      setMini(false)
       stopped = true
       flushWatch()
       cancelCountdown()
@@ -178,6 +180,7 @@
       case 'video':
         if (!hasVideo) {
           hasVideo = true
+          sendMeta()
           // Громкость общая для всех плееров — выставляем сразу, как появилось видео.
           cmd('volume', { v: settings.playerVolume })
           cmd('muted', { v: settings.playerMuted })
@@ -203,6 +206,10 @@
       case 'ended':
         ended()
         break
+      case 'media':
+        // Медиаклавиши и плитка Windows: play/pause/перемотку агент делает сам.
+        if (d.action === 'nexttrack' && hasNext) next()
+        break
     }
   }
 
@@ -217,6 +224,7 @@
   }
 
   function toggleFullscreen() {
+    setMini(false)
     if (document.fullscreenElement) document.exitFullscreen().catch(() => {})
     else (custom ? box : frame)?.requestFullscreen().catch(() => {})
   }
@@ -400,6 +408,75 @@
     }
   }
 
+  // ---- медиаклавиши, плитка Windows и Discord ----
+
+  const posterUrl = $derived.by(() => {
+    const p = anime.poster?.big || anime.poster?.medium || ''
+    return p.startsWith('//') ? 'https:' + p : p
+  })
+
+  /** Название и постер для плитки Windows: MediaSession живёт во фрейме с <video>, его задаёт агент. */
+  function sendMeta() {
+    cmd('meta', {
+      title: `${anime.title} — серия ${video.number}`,
+      artist: video.data.dubbing,
+      artwork: posterUrl.startsWith('https://') ? posterUrl : '',
+      next: hasNext,
+    })
+  }
+  $effect(() => {
+    // Сменилась серия или появилась следующая — плитка должна это знать.
+    void [video, hasNext, posterUrl]
+    if (untrack(() => hasVideo)) untrack(sendMeta)
+  })
+
+  /** Время начала серии для Discord: двигаем, только когда разошлось заметно (перемотка), —
+   *  иначе каждый тик плеера был бы новым статусом. */
+  let rpcStart = 0
+  $effect(() => {
+    const playing = hasVideo && !st.paused && !stopped && st.dur > 0
+    let span: { start: number; end: number } | undefined
+    if (playing) {
+      const start = Date.now() - (st.time * 1000) / (st.rate || 1)
+      if (Math.abs(start - rpcStart) > 3000) rpcStart = start
+      span = { start: Math.round(rpcStart), end: Math.round(rpcStart + (st.dur * 1000) / (st.rate || 1)) }
+    }
+    presence(
+      stopped
+        ? null
+        : {
+            title: anime.title,
+            url: anime.anime_url,
+            poster: posterUrl,
+            episode: String(video.number),
+            dubbing: video.data.dubbing,
+            playing: span,
+            paused: hasVideo && st.paused,
+          },
+    )
+  })
+  $effect(() => () => {
+    presence(null)
+    setMini(false)
+  })
+
+  // ---- мини-плеер: окно сжимается до одного плеера поверх остальных окон ----
+  let mini = $state(false)
+
+  function setMini(on: boolean) {
+    if (on === mini || !isTauri) return
+    if (on && document.fullscreenElement) document.exitFullscreen().catch(() => {})
+    mini = on
+    document.documentElement.classList.toggle('mini', on)
+    miniPlayer(on)
+  }
+
+  async function dragWindow(e: PointerEvent) {
+    if (e.button !== 0 || (e.target as HTMLElement).closest('button')) return
+    const { getCurrentWindow } = await import('@tauri-apps/api/window')
+    getCurrentWindow().startDragging().catch(() => {})
+  }
+
   // Полноэкранный режим растягивает только webview — растягиваем и окно.
   function onFullscreen() {
     fs = !!document.fullscreenElement
@@ -407,10 +484,21 @@
   }
 </script>
 
-<svelte:window onmessage={onMessage} onbeforeunload={() => flushWatch(true)} />
+<svelte:window
+  onmessage={onMessage}
+  onbeforeunload={() => flushWatch(true)}
+  onkeydown={(e) => e.key === 'Escape' && mini && setMini(false)}
+/>
 <svelte:document onfullscreenchange={onFullscreen} />
 
-<div class="player" class:fs bind:this={box}>
+<div class="player" class:fs class:mini bind:this={box}>
+  {#if mini}
+    <!-- Рамки у мини-окна нет: тянуть за верхнюю полоску. -->
+    <div class="minibar" onpointerdown={dragWindow} role="toolbar" tabindex="-1">
+      <span>{anime.title} · {video.number}</span>
+      <button title="Вернуть окно (Esc)" onclick={() => setMini(false)}><Maximize2 size={15} /></button>
+    </div>
+  {/if}
   {#if stopped}
     <button class="stopped" onclick={resume}>
       <span class="glass play"><Play size={34} /></span>
@@ -448,6 +536,7 @@
       {ed}
       {hasNext}
       {fs}
+      {mini}
       onToggle={togglePlay}
       onSeek={seek}
       onVolume={setVolume}
@@ -455,6 +544,7 @@
       onRate={(v) => cmd('rate', { v })}
       onFullscreen={toggleFullscreen}
       onNext={next}
+      onMini={() => setMini(!mini)}
     />
   {/if}
   {/if}
@@ -524,6 +614,58 @@
   }
   .player.fs {
     max-height: none;
+  }
+  .player.mini {
+    position: fixed;
+    inset: 0;
+    z-index: 900;
+    max-height: none;
+    aspect-ratio: auto;
+  }
+  :global(html.mini),
+  :global(html.mini body) {
+    overflow: hidden;
+    /* иначе место под полосу прокрутки (scrollbar-gutter: stable в app.css) остаётся пустой щелью справа */
+    scrollbar-gutter: auto;
+  }
+  .minibar {
+    position: absolute;
+    z-index: 5;
+    top: 0;
+    left: 0;
+    right: 0;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    height: 28px;
+    padding: 0 4px 0 10px;
+    background: linear-gradient(rgba(0, 0, 0, 0.7), transparent);
+    color: #fff;
+    font-size: 12px;
+    cursor: move;
+    opacity: 0;
+    transition: opacity 0.2s;
+  }
+  .player.mini:hover .minibar {
+    opacity: 1;
+  }
+  .minibar span {
+    flex: 1;
+    overflow: hidden;
+    white-space: nowrap;
+    text-overflow: ellipsis;
+  }
+  .minibar button {
+    display: grid;
+    place-items: center;
+    width: 24px;
+    height: 24px;
+    border-radius: 6px;
+    color: #fff;
+    cursor: pointer;
+  }
+  .minibar button:hover {
+    background: rgba(255, 255, 255, 0.15);
   }
   .cover {
     position: absolute;

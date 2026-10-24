@@ -11,7 +11,10 @@ use tauri::{AppHandle, Emitter, Manager, Runtime, Url, WebviewUrl, WebviewWindow
 use tauri_plugin_opener::OpenerExt;
 use tauri_plugin_window_state::StateFlags;
 
+mod discord;
 mod imgcache;
+mod mini;
+mod shiki;
 
 const SITE_LOGIN_LABEL: &str = "site-login";
 /// Отдельной страницы /login у сайта больше нет (404): форма входа живёт
@@ -205,7 +208,12 @@ fn setup_tray(app: &AppHandle<Wry>) -> tauri::Result<()> {
                 let on = app.state::<TrayNotify>().0.is_checked().unwrap_or(true);
                 let _ = app.emit_to("main", "tray-notify", on);
             }
-            "quit" => app.exit(0),
+            "quit" => {
+                if let Some(w) = app.get_webview_window("main") {
+                    let _ = mini::leave(&w.as_ref().window());
+                }
+                app.exit(0)
+            }
             _ => {}
         })
         .on_tray_icon_event(|tray, e| {
@@ -254,6 +262,9 @@ pub fn run() {
         })
         .on_window_event(|window, event| {
             if let WindowEvent::CloseRequested { api, .. } = event {
+                if window.label() == "main" {
+                    let _ = mini::leave(window);
+                }
                 if window.label() == "main" && CLOSE_TO_TRAY.load(Ordering::Relaxed) {
                     api.prevent_close();
                     let _ = window.hide();
@@ -267,6 +278,9 @@ pub fn run() {
             site_login_close,
             tray_set_notify,
             set_close_to_tray,
+            discord::discord_set,
+            mini::mini_player,
+            shiki::shiki_rates,
             imgcache::img_cache_stats,
             imgcache::img_cache_set_limit,
             imgcache::img_cache_clear

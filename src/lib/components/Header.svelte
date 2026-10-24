@@ -1,9 +1,10 @@
 <script lang="ts">
-  import { Bell, ChevronDown, History, LogIn, Settings } from '@lucide/svelte'
+  import { Bell, ChevronDown, History, LogIn, MessageCircle, Settings } from '@lucide/svelte'
   import { img } from '../api/client'
   import { route } from '../router.svelte'
   import { auth } from '../stores/auth.svelte'
   import { followsCount } from '../stores/follows.svelte'
+  import { chat } from '../stores/messages.svelte'
   import { notifs } from '../stores/notifications.svelte'
   import { isTauri } from '../native'
   import SearchBox from './SearchBox.svelte'
@@ -118,6 +119,12 @@
         <Bell size={18} />
         {#if fresh}<span class="dot">{fresh > 99 ? '99+' : fresh}</span>{/if}
       </a>
+      {#if auth.profile}
+        <a class="tool" href="#/messages" title="Сообщения" class:active={section === '/messages'}>
+          <MessageCircle size={18} />
+          {#if chat.unread}<span class="dot">{chat.unread > 99 ? '99+' : chat.unread}</span>{/if}
+        </a>
+      {/if}
       <a class="tool" href="#/settings" title="Настройки" class:active={section === '/settings'}>
         <Settings size={18} />
       </a>

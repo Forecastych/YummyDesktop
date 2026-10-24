@@ -42,19 +42,23 @@ $effect.root(() => {
     }
     const cached = load<Snapshot | null>('lists', null)
     if (cached?.user === uid) fill(cached)
-    Api.userLists(uid)
-      .then((all) => {
-        if (auth.profile?.id !== uid) return
-        fill({
-          user: uid,
-          lists: all.flatMap((a) => (a.user?.list?.list ? [[a.anime_id, a.user.list.list.id] as [number, ListId]] : [])),
-          favs: all.filter((a) => a.user?.list?.is_fav).map((a) => a.anime_id),
-        })
-        persist()
-      })
-      .catch(() => {})
+    reloadLists(false).catch(() => {})
   })
 })
+
+/** Перечитать списки с сервера — после входа и после импорта. fresh = мимо кэша запросов. */
+export async function reloadLists(fresh = true) {
+  const uid = auth.profile?.id
+  if (!uid) return
+  const all = await Api.userLists(uid, fresh ? { ttl: 0 } : {})
+  if (auth.profile?.id !== uid) return
+  fill({
+    user: uid,
+    lists: all.flatMap((a) => (a.user?.list?.list ? [[a.anime_id, a.user.list.list.id] as [number, ListId]] : [])),
+    favs: all.filter((a) => a.user?.list?.is_fav).map((a) => a.anime_id),
+  })
+  persist()
+}
 
 export const listOf = (id: number): ListId | null => lists.get(id) ?? null
 export const isFav = (id: number) => favs.has(id)

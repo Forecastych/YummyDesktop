@@ -8,6 +8,7 @@ import { errorText } from '../query.svelte'
 import { plainText } from '../sanitize'
 import { load, save } from '../storage'
 import { auth } from './auth.svelte'
+import { syncUnread } from './messages.svelte'
 import { rememberNotified, wasNotified } from './notified'
 import { settings } from './settings.svelte'
 
@@ -55,7 +56,10 @@ async function poll() {
   }
   // Непрочитанные — только в профиле (по нему же колокольчик сайта). /notifications/counts
   // считает уведомления по типам для вкладок и после «Прочитать все» не обнуляется.
-  const unread = Number((await Api.profile()).notifications?.count) || 0
+  const profile = await Api.profile()
+  // Заодно сверяем счётчик личных сообщений: сокет мог пропустить что-то, пока не было сети.
+  syncUnread(profile)
+  const unread = Number(profile.notifications?.count) || 0
   const changed = unread !== notifs.unread
   notifs.unread = unread
   if (lastId && (!unread || !changed)) return

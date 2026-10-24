@@ -1,6 +1,6 @@
 <script lang="ts">
   import { untrack } from 'svelte'
-  import { LogOut, Pencil } from '@lucide/svelte'
+  import { LogOut, MessageCircle, Pencil } from '@lucide/svelte'
   import { clearCache, img } from '../lib/api/client'
   import { Api } from '../lib/api/endpoints'
   import { LISTS, type FriendList, type ListedAnime, type ListId, type ListTime, type User, type UserStats } from '../lib/api/types'
@@ -191,6 +191,9 @@
         {/if}
         {#if own}
           <button class="btn small" onclick={onlogout}><LogOut size={14} /> Выйти</button>
+        {/if}
+        {#if auth.profile && !mine}
+          <a class="btn small" href={link(`/messages/${u.id}`)}><MessageCircle size={14} /> Написать</a>
         {/if}
       </div>
       {#if about.length}

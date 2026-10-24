@@ -57,6 +57,8 @@ export interface AnimeShort {
   views?: number
   season?: number
   top?: { global: number; category: number }
+  /** id тайтла на других сайтах; в списках /anime тоже приходит. */
+  remote_ids?: Record<string, number | string>
 }
 
 export interface VideoData {
@@ -100,7 +102,6 @@ export interface Anime extends AnimeShort {
   comments_count?: number
   reviews_count?: number
   blocked_in?: string[]
-  remote_ids?: Record<string, number | string>
   user?: { list?: UserListState; rating?: number }
 }
 
@@ -382,4 +383,35 @@ export interface Blogger extends UserShort {
   is_subscribed: boolean
   videos_count: number
   categories: VideoCategory[]
+}
+
+// ---- личные сообщения ----
+
+/** Строка списка `/dialogs`: собеседник и последнее сообщение. */
+export interface Dialog {
+  user_id: number
+  nickname: string
+  avatars: { small?: string; big?: string }
+  /** Секунды. */
+  date: number
+  last_message: string
+  unread_count: number
+  roles?: string[]
+  last_online?: number
+}
+
+export interface Message {
+  id: number
+  from_id: number
+  /** 0 — общий чат сайта, не личка. */
+  to_id: number
+  nickname: string
+  avatars: { small?: string; big?: string }
+  /** Секунды. */
+  date: number
+  text: string
+  read: boolean
+  deleted?: boolean
+  edited?: boolean
+  answer_to_id?: number
 }

@@ -107,6 +107,27 @@ export const traySetNotify = (on: boolean) => invokeSafe('tray_set_notify', { on
 /** Крестик прячет окно в трей (true) или закрывает приложение (false). */
 export const setCloseToTray = (on: boolean) => invokeSafe('set_close_to_tray', { on })
 
+/** Статус в Discord (см. src-tauri/src/discord.rs). activity null — убрать, пустой clientId — отключиться. */
+export const discordSet = (clientId: string, activity: Record<string, unknown> | null) =>
+  invokeSafe('discord_set', { clientId, activity })
+
+/** Сжать окно до мини-плеера поверх остальных (или вернуть как было). */
+export const miniPlayer = (on: boolean) => invokeSafe('mini_player', { on })
+
+/** Оценка из списка Shikimori. */
+export interface ShikiRate {
+  shikimori_id: number
+  status: 'planned' | 'watching' | 'rewatching' | 'completed' | 'on_hold' | 'dropped'
+  score: number
+  episodes: number
+}
+/** Список аниме пользователя Shikimori (id или ник). Ошибку отдаём как есть — там текст для человека. */
+export async function shikiRates(user: string): Promise<ShikiRate[]> {
+  if (!isTauri) throw new Error('Импорт работает только в приложении')
+  const { invoke } = await import('@tauri-apps/api/core')
+  return invoke<ShikiRate[]>('shiki_rates', { user })
+}
+
 /** Подписка на событие от Rust; в браузере — пустышка. */
 export async function onNative<T>(event: string, cb: (payload: T) => void): Promise<() => void> {
   if (!isTauri) return () => {}
