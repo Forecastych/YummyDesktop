@@ -1,0 +1,24 @@
+# Оболочка установщика: своё окно в стиле приложения вместо белых страниц NSIS.
+# Сам NSIS-установщик зашит внутрь (YD_PAYLOAD) и запускается тихо — ярлыки,
+# деинсталлятор и автообновление остаются его заботой. Собирает scripts/release.mjs.
+[package]
+name = "yummi-setup"
+version = "0.0.0"
+edition = "2024"
+publish = false
+
+[build-dependencies]
+tauri-build = { version = "2", features = [] }
+
+[dependencies]
+tauri = { version = "2", features = ["custom-protocol"] }
+serde = { version = "1.0", features = ["derive"] }
+rfd = { version = "0.15", default-features = false }
+winreg = "0.55"
+
+[profile.release]
+codegen-units = 1
+lto = true
+opt-level = "s"
+panic = "abort"
+strip = true

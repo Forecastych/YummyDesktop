@@ -1,10 +1,11 @@
-// Сборка релиза: подписанный установщик + latest.json для автообновления.
-// Запуск: npm run release [-- "что нового"]. Результат — в release/, все три файла
+// Сборка релиза: подписанный NSIS + latest.json для автообновления, установщик
+// в стиле приложения (setup/, внутри тот же NSIS) и портативный exe.
+// Запуск: npm run release [-- "что нового"]. Результат — в release/, все файлы
 // заливаются в релиз v<версия> на GitHub (см. README, «Выпуск версии»).
 import { spawnSync } from 'node:child_process'
 import { copyFileSync, existsSync, mkdirSync, readFileSync, readdirSync, writeFileSync } from 'node:fs'
 import { homedir } from 'node:os'
-import { join } from 'node:path'
+import { join, resolve } from 'node:path'
 
 const REPO = 'Forecastych/YummyDesktop'
 const KEY = join(homedir(), '.tauri', 'yummianime-desktop.key')
@@ -52,4 +53,15 @@ const latest = {
 }
 writeFileSync(join(OUT, 'latest.json'), JSON.stringify(latest, null, 2) + '\n')
 
-console.log(`\nГотово: ${OUT}/${name}, ${name}.sig, latest.json — залейте их в релиз v${version}.`)
+// Оболочка зашивает в себя только что подписанный NSIS (include_bytes! по YD_PAYLOAD).
+const shell = spawnSync('cargo', ['build', '--release', '--manifest-path', 'setup/Cargo.toml'], {
+  stdio: 'inherit',
+  env: { ...process.env, YD_PAYLOAD: resolve(NSIS, setup) },
+})
+if (shell.status !== 0) process.exit(shell.status ?? 1)
+const pretty = `YummyAnime-Desktop-Setup-${version}.exe`
+copyFileSync('setup/target/release/yummi-setup.exe', join(OUT, pretty))
+copyFileSync('src-tauri/target/release/yummi-desktop.exe', join(OUT, 'YummyAnime-Desktop.exe'))
+
+console.log(`\nГотово: ${OUT}/${pretty} (установщик для людей), YummyAnime-Desktop.exe (портативный),`)
+console.log(`${name}, ${name}.sig, latest.json (автообновление) — залейте всё в релиз v${version}.`)

@@ -1,0 +1,705 @@
+<!doctype html>
+<html lang="ru">
+  <head>
+    <meta charset="utf-8" />
+    <title>Установка YummyAnime Desktop</title>
+    <style>
+      /* Палитра, шрифт, кнопки и скругления — как в src/app.css приложения. */
+      @font-face {
+        font-family: 'Open Sans';
+        font-weight: 300 800;
+        src: url(fonts/open-sans-cyrillic-wght-normal.woff2) format('woff2-variations');
+        unicode-range: U+0301, U+0400-045F, U+0490-0491, U+04B0-04B1, U+2116;
+      }
+      @font-face {
+        font-family: 'Open Sans';
+        font-weight: 300 800;
+        src: url(fonts/open-sans-latin-wght-normal.woff2) format('woff2-variations');
+        unicode-range: U+0000-00FF, U+0131, U+0152-0153, U+02BB-02BC, U+02C6, U+02DA, U+02DC, U+2000-206F, U+2122,
+          U+2212, U+FEFF, U+FFFD;
+      }
+      :root {
+        --bg: #222;
+        --panel: #333;
+        --panel-2: #2c2c2c;
+        --panel-3: #292929;
+        --line: #444;
+        --text: #eee;
+        --text-2: #d0d0d0;
+        --muted: #a8a8a8;
+        --accent: #f66;
+        --green: #3cce7b;
+        --radius: 10px;
+        --radius-sm: 6px;
+        color-scheme: dark;
+      }
+      * {
+        box-sizing: border-box;
+      }
+      /* display: flex у блоков иначе перебивает атрибут hidden. */
+      [hidden] {
+        display: none !important;
+      }
+      html,
+      body {
+        height: 100%;
+        margin: 0;
+        overflow: hidden;
+        background: var(--bg);
+        color: var(--text);
+        font: 14px/1.45 'Open Sans', 'Segoe UI', sans-serif;
+        -webkit-font-smoothing: antialiased;
+        user-select: none;
+        cursor: default;
+      }
+      body {
+        display: flex;
+        flex-direction: column;
+      }
+      button {
+        font: inherit;
+        color: inherit;
+        cursor: pointer;
+        border: 0;
+        background: none;
+        padding: 0;
+      }
+
+      /* ---- шапка = заголовок окна, как в приложении ---- */
+      header {
+        position: relative;
+        z-index: 1;
+        flex: none;
+        display: flex;
+        align-items: center;
+        gap: 8px;
+        height: 40px;
+        padding-left: 12px;
+        background: var(--panel);
+        border-bottom: 1px solid var(--line);
+        box-shadow: 0 2px 6px rgba(0, 0, 0, 0.3);
+      }
+      .mark {
+        display: grid;
+        place-items: center;
+        width: 24px;
+        height: 24px;
+        border-radius: 6px;
+        background: var(--accent);
+        color: #fff;
+        font-weight: 800;
+        font-size: 14px;
+      }
+      .title {
+        font-size: 13px;
+        font-weight: 600;
+      }
+      b.hl {
+        color: var(--accent);
+        font-weight: inherit;
+      }
+      .controls {
+        display: flex;
+        height: 100%;
+        margin-left: auto;
+      }
+      .controls button {
+        display: grid;
+        place-items: center;
+        width: 46px;
+        color: var(--text-2);
+        transition: background 0.1s, color 0.1s;
+      }
+      .controls button:hover {
+        background: rgba(255, 255, 255, 0.1);
+        color: #fff;
+      }
+      .controls .close:hover {
+        background: #e81123;
+      }
+      .controls button:disabled {
+        opacity: 0.35;
+        pointer-events: none;
+      }
+      .controls svg {
+        fill: none;
+        stroke: currentColor;
+        stroke-width: 1;
+        shape-rendering: crispEdges;
+      }
+      .controls .close svg {
+        shape-rendering: geometricPrecision;
+      }
+
+      /* ---- шаги мастера ---- */
+      .steps {
+        flex: none;
+        display: flex;
+        align-items: center;
+        gap: 10px;
+        padding: 14px 24px 0;
+        font-size: 12px;
+        font-weight: 600;
+        color: var(--muted);
+      }
+      .step {
+        display: flex;
+        align-items: center;
+        gap: 7px;
+        white-space: nowrap;
+        transition: color 0.2s;
+      }
+      .num {
+        display: grid;
+        place-items: center;
+        width: 22px;
+        height: 22px;
+        border-radius: 50%;
+        background: var(--panel-3);
+        border: 1px solid var(--line);
+        font-size: 11px;
+        transition: background 0.2s, border-color 0.2s, color 0.2s;
+      }
+      .step.now {
+        color: var(--text);
+      }
+      .step.now .num {
+        background: var(--accent);
+        border-color: var(--accent);
+        color: #fff;
+      }
+      .step.past .num {
+        background: rgba(60, 206, 123, 0.14);
+        border-color: rgba(60, 206, 123, 0.55);
+        color: var(--green);
+      }
+      .step.past .num span {
+        display: none;
+      }
+      .step:not(.past) .num svg {
+        display: none;
+      }
+      .link {
+        flex: 1;
+        height: 1px;
+        background: var(--line);
+      }
+
+      /* ---- экраны ---- */
+      main {
+        position: relative;
+        flex: 1;
+      }
+      section {
+        position: absolute;
+        inset: 0;
+        display: flex;
+        flex-direction: column;
+        padding: 18px 24px 20px;
+        animation: in 0.25s ease;
+      }
+      section[hidden] {
+        display: none;
+      }
+      @keyframes in {
+        from {
+          opacity: 0;
+          transform: translateX(10px);
+        }
+      }
+      .hero {
+        display: flex;
+        align-items: center;
+        gap: 16px;
+      }
+      .logo {
+        width: 64px;
+        height: 64px;
+        flex: none;
+        filter: drop-shadow(0 6px 18px rgba(255, 102, 102, 0.35));
+      }
+      h1 {
+        margin: 0;
+        font-size: 22px;
+        font-weight: 700;
+        line-height: 1.2;
+      }
+      h2 {
+        margin: 0 0 12px;
+        font-size: 16px;
+        font-weight: 700;
+      }
+      .sub {
+        margin-top: 3px;
+        color: var(--muted);
+        font-size: 13px;
+      }
+      .text {
+        margin: 16px 0 0;
+        color: var(--text-2);
+        font-size: 13px;
+      }
+      .card {
+        padding: 12px 14px 14px;
+        background: var(--panel-2);
+        border: 1px solid var(--line);
+        border-radius: var(--radius);
+      }
+      .note {
+        display: flex;
+        gap: 10px;
+        margin-top: 14px;
+        padding: 10px 12px;
+        border-radius: var(--radius);
+        background: rgba(60, 206, 123, 0.1);
+        border: 1px solid rgba(60, 206, 123, 0.4);
+        color: var(--text-2);
+        font-size: 12.5px;
+      }
+      .note svg {
+        flex: none;
+        margin-top: 1px;
+        color: var(--green);
+      }
+      .note b {
+        color: var(--text);
+        font-weight: 600;
+      }
+      .label {
+        margin-bottom: 6px;
+        color: var(--muted);
+        font-size: 11px;
+        font-weight: 600;
+        text-transform: uppercase;
+        letter-spacing: 0.03em;
+      }
+      .path {
+        display: flex;
+        gap: 8px;
+      }
+      .field {
+        flex: 1;
+        min-width: 0;
+        height: 32px;
+        padding: 0 10px;
+        line-height: 30px;
+        background: var(--panel-3);
+        border: 1px solid var(--line);
+        border-radius: var(--radius-sm);
+        color: var(--text-2);
+        font-size: 13px;
+        white-space: nowrap;
+        overflow: hidden;
+        text-overflow: ellipsis;
+      }
+      .hint {
+        margin-top: 10px;
+        color: var(--muted);
+        font-size: 12px;
+      }
+      .check {
+        display: flex;
+        align-items: center;
+        gap: 8px;
+        width: fit-content;
+        margin-top: 12px;
+        font-size: 13px;
+        color: var(--text-2);
+        cursor: pointer;
+      }
+      .check input {
+        display: none;
+      }
+      .box {
+        display: grid;
+        place-items: center;
+        width: 18px;
+        height: 18px;
+        border-radius: 5px;
+        background: var(--panel-3);
+        border: 1px solid var(--line);
+        transition: background 0.15s, border-color 0.15s;
+      }
+      .box svg {
+        opacity: 0;
+        transition: opacity 0.15s;
+      }
+      .check input:checked + .box {
+        background: var(--accent);
+        border-color: var(--accent);
+      }
+      .check input:checked + .box svg {
+        opacity: 1;
+      }
+      .check:hover .box {
+        border-color: var(--accent);
+      }
+
+      .actions {
+        display: flex;
+        justify-content: flex-end;
+        gap: 8px;
+        margin-top: auto;
+      }
+      .actions .left {
+        margin-right: auto;
+      }
+      .btn {
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        gap: 6px;
+        height: 36px;
+        padding: 0 16px;
+        border-radius: var(--radius-sm);
+        background: var(--panel);
+        border: 1px solid var(--line);
+        font-size: 13px;
+        font-weight: 600;
+        text-transform: uppercase;
+        transition: border-color 0.15s, filter 0.15s;
+      }
+      .btn:hover {
+        border-color: var(--accent);
+        color: #fff;
+      }
+      .btn.ghost {
+        background: transparent;
+      }
+      .btn.small {
+        height: 32px;
+        padding: 0 12px;
+        font-size: 12px;
+      }
+      .btn.accent {
+        min-width: 130px;
+        background: var(--accent);
+        border-color: var(--accent);
+        color: #fff;
+      }
+      .btn.accent:hover {
+        filter: brightness(1.08);
+      }
+
+      /* ---- установка / итог ---- */
+      .center {
+        align-items: center;
+        text-align: center;
+      }
+      .center .mid {
+        flex: 1;
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        justify-content: center;
+      }
+      .center h2 {
+        margin: 16px 0 4px;
+        font-size: 18px;
+      }
+      .center p {
+        margin: 0;
+        color: var(--muted);
+        font-size: 13px;
+      }
+      .pulse {
+        width: 72px;
+        height: 72px;
+        animation: pulse 1.6s ease-in-out infinite;
+      }
+      @keyframes pulse {
+        50% {
+          transform: scale(0.94);
+          filter: drop-shadow(0 6px 26px rgba(255, 102, 102, 0.6));
+        }
+      }
+      .bar {
+        position: relative;
+        width: 280px;
+        height: 6px;
+        margin-top: 18px;
+        overflow: hidden;
+        background: var(--panel-3);
+        border: 1px solid var(--line);
+        border-radius: 999px;
+      }
+      .bar::after {
+        content: '';
+        position: absolute;
+        top: 0;
+        bottom: 0;
+        width: 40%;
+        border-radius: 999px;
+        background: var(--accent);
+        animation: run 1.1s ease-in-out infinite;
+      }
+      @keyframes run {
+        from {
+          left: -40%;
+        }
+        to {
+          left: 100%;
+        }
+      }
+      .badge {
+        display: grid;
+        place-items: center;
+        width: 64px;
+        height: 64px;
+        border-radius: 50%;
+        background: rgba(60, 206, 123, 0.14);
+        border: 1px solid rgba(60, 206, 123, 0.55);
+        color: var(--green);
+      }
+      .badge.bad {
+        background: rgba(255, 102, 102, 0.14);
+        border-color: rgba(255, 102, 102, 0.55);
+        color: var(--accent);
+      }
+      .center .check {
+        margin: 16px auto 0;
+      }
+      .center .actions {
+        width: 100%;
+      }
+      #error-text {
+        max-width: 440px;
+        word-break: break-word;
+      }
+    </style>
+  </head>
+  <body>
+    <header data-tauri-drag-region>
+      <span class="mark" data-tauri-drag-region>Y</span>
+      <span class="title" data-tauri-drag-region>Установка YummyAnime <b class="hl">Desktop</b></span>
+      <div class="controls">
+        <button id="min" title="Свернуть" aria-label="Свернуть">
+          <svg width="10" height="10" viewBox="0 0 10 10"><path d="M0 5.5h10" /></svg>
+        </button>
+        <button id="close" class="close" title="Закрыть" aria-label="Закрыть">
+          <svg width="10" height="10" viewBox="0 0 10 10"><path d="M0 0l10 10M10 0L0 10" /></svg>
+        </button>
+      </div>
+    </header>
+
+    <nav class="steps" data-tauri-drag-region></nav>
+
+    <main>
+      <section id="welcome">
+        <div class="hero">
+          <img class="logo" src="logo.png" alt="" />
+          <div>
+            <h1>YummyAnime <b class="hl">Desktop</b></h1>
+            <div class="sub" id="sub"></div>
+          </div>
+        </div>
+        <p class="text" id="intro">
+          Мастер установит на компьютер клиент YummyAnime без рекламы: свои кнопки плеера, автопропуск опенингов и
+          эндингов, отметки просмотренных серий.
+        </p>
+        <div class="note" id="keep" hidden>
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2">
+            <path d="M12 3l7 3v6c0 4.5-3 7.6-7 9-4-1.4-7-4.5-7-9V6z" />
+            <path d="M8.5 12l2.5 2.5 4.5-5" />
+          </svg>
+          <span>
+            <b>Вход в аккаунт, история, отметки серий и настройки сохранятся</b> — они хранятся отдельно от программы,
+            обновление их не трогает.
+          </span>
+        </div>
+        <div class="actions">
+          <button class="btn ghost" data-close>Отмена</button>
+          <button class="btn accent" id="next">Далее</button>
+        </div>
+      </section>
+
+      <section id="options" hidden>
+        <h2>Параметры установки</h2>
+        <div class="card">
+          <div class="label">Папка установки</div>
+          <div class="path">
+            <div class="field" id="dir"></div>
+            <button class="btn small" id="pick">Изменить</button>
+          </div>
+          <label class="check">
+            <input type="checkbox" id="desktop" checked />
+            <span class="box">
+              <svg width="11" height="11" viewBox="0 0 12 12" fill="none" stroke="#fff" stroke-width="2">
+                <path d="M2 6.5l2.5 2.5L10 3.5" />
+              </svg>
+            </span>
+            Ярлык на рабочем столе
+          </label>
+        </div>
+        <div class="hint">Права администратора не нужны — программа ставится только для вашей учётной записи.</div>
+        <div class="actions">
+          <button class="btn ghost left" data-go="welcome">Назад</button>
+          <button class="btn ghost" data-close>Отмена</button>
+          <button class="btn accent" id="install">Установить</button>
+        </div>
+      </section>
+
+      <section id="progress" class="center" hidden>
+        <div class="mid">
+          <img class="logo pulse" src="logo.png" alt="" />
+          <h2 id="progress-title">Устанавливаем…</h2>
+          <p>Пара секунд — и можно смотреть</p>
+          <div class="bar"></div>
+        </div>
+      </section>
+
+      <section id="done" class="center" hidden>
+        <div class="mid">
+          <div class="badge">
+            <svg width="30" height="30" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
+              <path d="M5 12.5l4.5 4.5L19 7.5" />
+            </svg>
+          </div>
+          <h2>Готово!</h2>
+          <p id="done-text">YummyAnime Desktop установлен</p>
+          <label class="check">
+            <input type="checkbox" id="run" checked />
+            <span class="box">
+              <svg width="11" height="11" viewBox="0 0 12 12" fill="none" stroke="#fff" stroke-width="2">
+                <path d="M2 6.5l2.5 2.5L10 3.5" />
+              </svg>
+            </span>
+            Запустить YummyAnime Desktop
+          </label>
+        </div>
+        <div class="actions">
+          <button class="btn accent" id="finish">Готово</button>
+        </div>
+      </section>
+
+      <section id="failed" class="center" hidden>
+        <div class="mid">
+          <div class="badge bad">
+            <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
+              <path d="M6 6l12 12M18 6L6 18" />
+            </svg>
+          </div>
+          <h2>Не получилось установить</h2>
+          <p id="error-text"></p>
+        </div>
+        <div class="actions">
+          <button class="btn ghost left" id="back">Назад</button>
+          <button class="btn ghost" data-close>Закрыть</button>
+          <button class="btn accent" id="retry">Повторить</button>
+        </div>
+      </section>
+    </main>
+
+    <script>
+      const { invoke } = window.__TAURI__.core
+      const win = window.__TAURI__.window.getCurrentWindow()
+      const $ = (id) => document.getElementById(id)
+
+      // Новая установка — мастер из четырёх шагов. Обновление, как у лаунчеров, без вопросов:
+      // та же папка, тот же ярлык, сразу ставим поверх. Экран → шаг степпера
+      // (ошибка остаётся на шаге установки).
+      const FLOWS = {
+        install: {
+          steps: ['Начало', 'Параметры', 'Установка', 'Готово'],
+          at: { welcome: 0, options: 1, progress: 2, failed: 2, done: 3 },
+        },
+        update: {
+          steps: ['Начало', 'Обновление', 'Готово'],
+          at: { welcome: 0, progress: 1, failed: 1, done: 2 },
+        },
+      }
+      const CHECK = '<svg width="11" height="11" viewBox="0 0 12 12" fill="none" stroke="currentColor" stroke-width="2.2"><path d="M2 6.5l2.5 2.5L10 3.5"/></svg>'
+      const nav = document.querySelector('.steps')
+
+      let flow = FLOWS.install
+      let update = false
+      let shortcut = true
+      let dir = ''
+      let screen = 'welcome'
+
+      function renderSteps() {
+        nav.innerHTML = flow.steps
+          .map(
+            (s, i) =>
+              (i ? '<span class="link" data-tauri-drag-region></span>' : '') +
+              `<span class="step" data-tauri-drag-region><span class="num"><span>${i + 1}</span>${CHECK}</span>${s}</span>`,
+          )
+          .join('')
+      }
+
+      function show(name) {
+        screen = name
+        for (const s of document.querySelectorAll('section')) s.hidden = s.id !== name
+        const at = flow.at[name]
+        nav.querySelectorAll('.step').forEach((el, i) => {
+          el.classList.toggle('now', i === at)
+          el.classList.toggle('past', i < at || (name === 'done' && i === at))
+        })
+        $('close').disabled = name === 'progress'
+      }
+
+      function setDir(d) {
+        dir = d
+        $('dir').textContent = d
+        $('dir').title = d
+      }
+
+      async function install() {
+        show('progress')
+        try {
+          await invoke('install', { dir, desktop: update ? shortcut : $('desktop').checked })
+          show('done')
+        } catch (e) {
+          $('error-text').textContent = String(e)
+          show('failed')
+        }
+      }
+
+      for (const b of document.querySelectorAll('[data-close]')) b.onclick = () => win.close()
+      for (const b of document.querySelectorAll('[data-go]')) b.onclick = () => show(b.dataset.go)
+      $('min').onclick = () => win.minimize()
+      $('close').onclick = () => win.close()
+      $('install').onclick = $('retry').onclick = install
+      $('next').onclick = () => (update ? install() : show('options'))
+      $('back').onclick = () => show(update ? 'welcome' : 'options')
+      $('finish').onclick = () => ($('run').checked ? invoke('launch', { dir }) : win.close())
+      $('pick').onclick = async () => {
+        const d = await invoke('pick_dir', { dir })
+        if (d) setDir(d)
+      }
+
+      // Enter — главная кнопка экрана, Esc — закрыть (кроме самой установки).
+      const MAIN = { welcome: '#next', options: '#install', done: '#finish', failed: '#retry' }
+      addEventListener('keydown', (e) => {
+        if (e.key === 'Enter' && MAIN[screen]) document.querySelector(`#${screen} ${MAIN[screen]}`)?.click()
+        if (e.key === 'Escape' && screen !== 'progress') win.close()
+      })
+      addEventListener('contextmenu', (e) => e.preventDefault())
+
+      invoke('info').then((info) => {
+        setDir(info.dir)
+        if (info.installed) {
+          update = true
+          flow = FLOWS.update
+          shortcut = info.shortcut
+          const same = info.installed === info.version
+          $('sub').textContent = same
+            ? `Версия ${info.version} уже установлена`
+            : `Обновление ${info.installed} → ${info.version}`
+          $('intro').textContent = same
+            ? 'Программа переустановится поверх, в ту же папку. Если файлы повредились — это починит.'
+            : 'Программа обновится в той же папке. Если она сейчас открыта — закроется сама.'
+          $('keep').hidden = false
+          $('next').textContent = same ? 'Переустановить' : 'Обновить'
+          $('progress-title').textContent = 'Обновляем…'
+          $('done-text').textContent = `Версия ${info.version} установлена, ваши данные на месте`
+        } else {
+          $('sub').textContent = `Версия ${info.version}`
+        }
+        renderSteps()
+        show('welcome')
+        requestAnimationFrame(() => win.show())
+      })
+    </script>
+  </body>
+</html>
