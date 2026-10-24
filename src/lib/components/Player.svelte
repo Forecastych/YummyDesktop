@@ -230,8 +230,6 @@
 
   // Состояние, которое сбрасывается при смене серии.
   let resumed = false
-  let skippedOp = false
-  let skippedEd = false
   let lastSaved = 0
   let countdownTimer: ReturnType<typeof setInterval> | undefined
 
@@ -266,9 +264,8 @@
       time = 0
       dur = v.duration || 0
       resumed = false
-      skippedOp = false
-      skippedEd = false
       lastSaved = 0
+      skipAt = Date.now()
       cancelCountdown()
       const p = progressOf(anime.anime_id, v.number)
       touch({
@@ -303,15 +300,32 @@
     setTimeout(() => toast === text && (toast = ''), 3000)
   }
 
+  /** Автопропуск срабатывает при каждом попадании в опенинг или эндинг — и после
+   *  перемотки назад тоже. Пауза между попытками нужна, пока плеер перематывает или
+   *  грузит следующую серию: старый фрейм ещё успевает прислать время из эндинга.
+   *  Поэтому смена серии тоже начинает паузу заново. */
+  const SKIP_RETRY = 2000
+  let skipAt = 0
+
+  function autoSkip() {
+    if (Date.now() - skipAt < SKIP_RETRY) return
+    if (inOpening && settings.autoSkipOpening) {
+      skipAt = Date.now()
+      skipOpening()
+      flash('Опенинг пропущен')
+    } else if (inEnding && settings.autoSkipEnding) {
+      skipAt = Date.now()
+      skipEnding()
+    }
+  }
+
   function skipOpening() {
     if (!op) return
-    skippedOp = true
     seek(op.time + op.length)
   }
 
   function skipEnding() {
     if (!ed) return
-    skippedEd = true
     if (hasNext && settings.autoNext) next()
     else seek(ed.time + ed.length)
   }
@@ -342,11 +356,7 @@
         return
       }
     }
-    if (inOpening && settings.autoSkipOpening && !skippedOp) {
-      skipOpening()
-      flash('Опенинг пропущен')
-    }
-    if (inEnding && settings.autoSkipEnding && !skippedEd) skipEnding()
+    autoSkip()
     if (t > 0) trackWatch(t)
 
     // Прогресс пишем раз в 5 секунд, а не на каждый тик плеера.

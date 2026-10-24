@@ -859,6 +859,7 @@
     margin-bottom: 10px;
   }
   .ep {
+    position: relative;
     min-width: 40px;
     height: 30px;
     padding: 0 8px;
@@ -870,9 +871,20 @@
   .ep:hover {
     border-color: var(--green);
   }
+  /* Просмотренная — зелёная кромка, подложка и галочка в углу: видно с первого взгляда. */
   .ep.done {
-    color: var(--muted);
-    background: var(--panel-3);
+    color: var(--green);
+    background: rgba(60, 206, 123, 0.14);
+    border-color: rgba(60, 206, 123, 0.55);
+  }
+  .ep.done::after {
+    content: '✓';
+    position: absolute;
+    top: 1px;
+    right: 3px;
+    font-size: 9px;
+    font-weight: 700;
+    line-height: 1;
   }
   .ep.active {
     background: var(--green);
