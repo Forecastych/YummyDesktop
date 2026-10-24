@@ -53,6 +53,8 @@
   ]
 
   const section = $derived('/' + (route.path.split('/')[1] ?? ''))
+  const isActive = (href: string) => section === href || (href === '/catalog' && section === '/schedule')
+  const current = $derived(nav.find((i) => isActive(i.href))?.title ?? 'Разделы')
   const fresh = $derived(followsCount() + (auth.profile ? notifs.unread : 0))
 </script>
 
@@ -63,10 +65,10 @@
       <span class="mark">Y</span><span class="name">YummyAnime <b>Desktop</b></span>
     </a>
 
-    <nav>
+    <nav class="full">
       {#each nav as item (item.href)}
         <div class="nav-item" class:has-children={item.children}>
-          <a href="#{item.href}" class:active={section === item.href || (item.href === '/catalog' && section === '/schedule')}>
+          <a href="#{item.href}" class:active={isActive(item.href)}>
             {item.title}
             {#if item.children}<ChevronDown size={13} />{/if}
           </a>
@@ -79,6 +81,26 @@
           {/if}
         </div>
       {/each}
+    </nav>
+
+    <!-- Узкое окно: все разделы в одном выпадающем меню, иначе пункты наезжают на поиск и кнопки. -->
+    <nav class="compact">
+      <div class="nav-item">
+        <button type="button" class="active">{current} <ChevronDown size={13} /></button>
+        <div class="menu" data-tauri-drag-region="false">
+          {#each nav as item, i (item.href)}
+            <!-- Группы с подпунктами отделены чертой от соседей. -->
+            {#if i && (item.children || nav[i - 1].children)}<span class="sep"></span>{/if}
+            {#if item.children}
+              {#each item.children as c (c.href)}
+                <a href="#{c.href}" onclick={(e) => e.currentTarget.blur()}>{c.title}</a>
+              {/each}
+            {:else}
+              <a href="#{item.href}" class:active={isActive(item.href)} onclick={(e) => e.currentTarget.blur()}>{item.title}</a>
+            {/if}
+          {/each}
+        </div>
+      </div>
     </nav>
 
     <div class="search-wrap"><SearchBox /></div>
@@ -104,7 +126,7 @@
           <img src={img(auth.profile.avatars?.small)} alt="" width="28" height="28" />
         </a>
       {:else}
-        <a class="btn primary small" href="#/login"><LogIn size={14} /> Войти</a>
+        <a class="btn primary small" href="#/login" title="Войти"><LogIn size={14} /> <span class="label">Войти</span></a>
       {/if}
     </div>
   </div>
@@ -165,7 +187,7 @@
     position: relative;
     height: 100%;
   }
-  .nav-item > a {
+  .nav-item > :is(a, button) {
     display: flex;
     align-items: center;
     gap: 3px;
@@ -179,10 +201,10 @@
     border-top: 3px solid transparent;
   }
   .nav-item > a:hover,
-  .nav-item:hover > a {
+  .nav-item:hover > :is(a, button) {
     color: #fff;
   }
-  .nav-item > a.active {
+  .nav-item > .active {
     color: #fff;
     border-bottom-color: var(--accent);
   }
@@ -216,9 +238,22 @@
     padding: 8px 14px;
     font-size: 13px;
   }
-  .menu a:hover {
+  .menu a:hover,
+  .menu a.active {
     background: var(--panel-2);
     color: var(--accent);
+  }
+  .sep {
+    display: block;
+    margin: 4px 0;
+    border-top: 1px solid var(--line);
+  }
+  .compact {
+    display: none;
+  }
+  .compact .menu {
+    max-height: calc(100vh - var(--header-h));
+    overflow-y: auto;
   }
   .search-wrap {
     flex: 1;
@@ -272,16 +307,37 @@
   .tools .btn {
     margin-left: 6px;
   }
-  /* Название с полным меню и поиском влезает примерно с 1300px — уже прячем его, а не обрезаем поиск. */
-  @media (max-width: 1320px) {
+  /* Пороги замерены в окне приложения (с кнопками окна, 138px): меню — 630px, ужатое — 555,
+     поиск — от 160, значки с «Войти» — 200, название — 175. Уже порога элементы наезжают друг на друга. */
+  @media (max-width: 1420px) {
     .name {
       display: none;
     }
   }
-  @media (max-width: 1100px) {
-    .nav-item > a {
+  @media (max-width: 1240px) {
+    .nav-item > :is(a, button) {
       padding: 0 8px;
       font-size: 12px;
+    }
+  }
+  @media (max-width: 1170px) {
+    .full {
+      display: none;
+    }
+    .compact {
+      display: flex;
+    }
+  }
+  /* Минимальное окно при крупном масштабе — около 600px. */
+  @media (max-width: 720px) {
+    .inner {
+      gap: 10px;
+    }
+    .search-wrap {
+      min-width: 120px;
+    }
+    .tools .label {
+      display: none;
     }
   }
 </style>

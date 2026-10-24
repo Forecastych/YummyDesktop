@@ -50,6 +50,42 @@ html.yd-bare * { visibility: hidden !important; }
     'object-fit': 'contain',
   }
 
+  /** Стили-прятки внутри shadow root: правило из STYLE туда не проникает, а VK-плеер
+   *  (внутри CVH) ещё и делает контейнеру all:initial — его постер и кнопка play
+   *  оставались видны поверх видео. */
+  const shadowStyles = []
+  const setShadows = (on) => {
+    for (const st of shadowStyles) st.disabled = !on
+  }
+
+  function hideShadows(el) {
+    for (let root = el.getRootNode(); root instanceof ShadowRoot; root = root.host.getRootNode()) {
+      if (shadowStyles.some((st) => st.parentNode === root)) continue
+      const st = document.createElement('style')
+      st.textContent = '* { visibility: hidden !important; }'
+      st.disabled = !bare
+      root.appendChild(st)
+      shadowStyles.push(st)
+    }
+  }
+
+  /** Предки показанного элемента с принудительной opacity: VK-плеер (после возврата
+   *  из трея) вешает обёртке видео класс hidden с opacity 0 — видео играет, экран чёрный.
+   *  Плеер может перерисовать стили, поэтому вызывается и из опроса. */
+  let lifted = []
+  function lift(el) {
+    for (let p = el.parentNode; p; p = p.parentNode || p.host) {
+      if (!(p instanceof Element)) continue
+      if (!lifted.some(([e]) => e === p))
+        lifted.push([p, p.style.getPropertyValue('opacity'), p.style.getPropertyPriority('opacity')])
+      p.style.setProperty('opacity', '1', 'important')
+    }
+  }
+  function unlift() {
+    for (const [e, v, pr] of lifted) v ? e.style.setProperty('opacity', v, pr) : e.style.removeProperty('opacity')
+    lifted = []
+  }
+
   function setBare(on) {
     if (revealed) on = false
     if (on === bare) return
@@ -62,6 +98,7 @@ html.yd-bare * { visibility: hidden !important; }
       document.documentElement.appendChild(st)
     }
     document.documentElement.classList.toggle('yd-bare', on)
+    setShadows(on)
   }
 
   /** Inline + important: перебивает стили плеера и работает внутри shadow DOM. */
@@ -72,11 +109,14 @@ html.yd-bare * { visibility: hidden !important; }
     shown = el
     shownStyle = el.getAttribute('style')
     for (const [k, v] of Object.entries(SHOW)) el.style.setProperty(k, v, 'important')
+    hideShadows(el)
+    lift(el)
     setBare(true)
   }
 
   function unshow() {
     if (!shown) return
+    unlift()
     if (shownStyle == null) shown.removeAttribute('style')
     else shown.setAttribute('style', shownStyle)
     shown = null
@@ -85,8 +125,14 @@ html.yd-bare * { visibility: hidden !important; }
 
   // ---- поиск видео (в том числе в открытых shadow root) ----
 
+  // Играющее видео важнее всего (у VK-плеера есть пул запасных <video>), а текущему —
+  // полбалла форы, чтобы при равенстве не прыгать между элементами.
   const score = (v) =>
-    (v.currentSrc || v.src ? 4 : 0) + (v.duration > 0 ? 2 : 0) + (v.offsetWidth * v.offsetHeight > 0 ? 1 : 0)
+    (!v.paused && v.readyState >= 2 ? 8 : 0) +
+    (v.currentSrc || v.src ? 4 : 0) +
+    (v.duration > 0 ? 2 : 0) +
+    (v.offsetWidth * v.offsetHeight > 0 ? 1 : 0) +
+    (v === video ? 0.5 : 0)
 
   function findVideo(root, depth) {
     let best = null
@@ -173,10 +219,18 @@ html.yd-bare * { visibility: hidden !important; }
     // Спрятанные элементы elementFromPoint не видит — на мгновение показываем всё.
     // Кадр не успевает отрисоваться: всё происходит синхронно.
     document.documentElement.classList.remove('yd-bare')
+    setShadows(false)
     const x = innerWidth / 2
     const y = innerHeight / 2
-    const el = document.elementFromPoint(x, y)
-    if (was) document.documentElement.classList.add('yd-bare')
+    let el = document.elementFromPoint(x, y)
+    // Хост shadow DOM (у CVH это <video-player>) отдаёт сам себя — спускаемся к тому,
+    // что под точкой на самом деле.
+    for (let d = 0; el?.shadowRoot && d < 3; d++) {
+      const inner = el.shadowRoot.elementFromPoint(x, y)
+      if (!inner || inner === el) break
+      el = inner
+    }
+    if (was) document.documentElement.classList.add('yd-bare'), setShadows(true)
     // В центре чужой iframe — нажмёт агент внутри него.
     if (!el || el.tagName === 'IFRAME') return
     const opt = { bubbles: true, cancelable: true, composed: true, clientX: x, clientY: y, button: 0, view: window }
@@ -226,7 +280,14 @@ html.yd-bare * { visibility: hidden !important; }
     }
   }
 
-  const kids = () => document.querySelectorAll('iframe')
+  /** iframe документа, в том числе внутри открытых shadow root: у CVH фрейм с видео
+   *  лежит в shadow DOM элемента <video-player>, и querySelectorAll его не видит. */
+  function frames(root, depth, out) {
+    for (const f of root.querySelectorAll('iframe')) out.push(f)
+    if (depth < 3) for (const el of root.querySelectorAll('*')) if (el.shadowRoot) frames(el.shadowRoot, depth + 1, out)
+    return out
+  }
+  const kids = () => frames(document, 0, [])
   const toKids = (m) => {
     for (const f of kids()) if (f.contentWindow) post(f.contentWindow, m)
   }
@@ -239,6 +300,7 @@ html.yd-bare * { visibility: hidden !important; }
     setInterval(() => {
       toKids({ cmd: 'init' })
       scan()
+      if (shown) lift(shown)
     }, 700)
     scan()
   }

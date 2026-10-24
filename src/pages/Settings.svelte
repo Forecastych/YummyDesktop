@@ -2,7 +2,7 @@
   import { RefreshCw } from '@lucide/svelte'
   import { clearCache } from '../lib/api/client'
   import { imgCacheClear, imgCacheStats, isTauri, openExternal, type ImgCacheStats } from '../lib/native'
-  import { IMAGE_CACHE_SIZES, settings, UI_SCALES } from '../lib/stores/settings.svelte'
+  import { GLASS_CLARITY, IMAGE_CACHE_SIZES, settings, UI_SCALES } from '../lib/stores/settings.svelte'
   import { checkUpdates, installUpdate, updates } from '../lib/stores/updates.svelte'
 
   let cleared = $state(false)
@@ -55,7 +55,7 @@
     <h1 class="block-title">Настройки</h1>
 
     <h2>Плеер</h2>
-    {@render toggle('autoSkipOpening', 'Автоматически пропускать опенинг', 'Если у серии размечен опенинг. Работает в плеере Kodik.')}
+    {@render toggle('autoSkipOpening', 'Автоматически пропускать опенинг', 'Если у серии размечен опенинг. То же есть в шестерёнке плеера.')}
     {@render toggle('autoSkipEnding', 'Автоматически пропускать эндинг')}
     {@render toggle('autoNext', 'Автопереход к следующей серии', 'Отсчёт 5 секунд после окончания серии.')}
     {@render toggle('resume', 'Продолжать с места остановки')}
@@ -86,6 +86,27 @@
           <option value={s}>{Math.round(s * 100)}%{s === 1.2 ? ' (по умолчанию)' : ''}</option>
         {/each}
       </select>
+    </label>
+    <label class="row">
+      <span class="text">
+        <span>Прозрачность стекла</span>
+        <small>Кнопки плеера, меню и всплывающие сообщения. Меньше — темнее и читаемее на светлой картинке.</small>
+      </span>
+      <span class="narrow glass-set">
+        <span class="glass-demo" aria-hidden="true">
+          <span class="glass">{settings.glassClarity}%</span>
+        </span>
+        <input
+          type="range"
+          class="range"
+          min={GLASS_CLARITY.min}
+          max={GLASS_CLARITY.max}
+          step="5"
+          bind:value={settings.glassClarity}
+          ondblclick={() => (settings.glassClarity = GLASS_CLARITY.def)}
+          title="Двойной щелчок — по умолчанию ({GLASS_CLARITY.def}%)"
+        />
+      </span>
     </label>
     {@render toggle('dataSaver', 'Экономия трафика', 'Постеры в меньшем разрешении.')}
     {@render toggle('reduceMotion', 'Без анимаций')}
@@ -229,6 +250,33 @@
   }
   .switch:checked::after {
     transform: translateX(18px);
+  }
+  /* Образец стекла поверх пёстрой подложки — видно, как меняется прозрачность. */
+  .glass-set {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+  }
+  .glass-demo {
+    display: grid;
+    place-items: center;
+    height: 52px;
+    border-radius: 12px;
+    background:
+      repeating-linear-gradient(135deg, rgba(255, 255, 255, 0.9) 0 8px, transparent 8px 16px),
+      linear-gradient(90deg, #f66, #fb5, #6cf);
+  }
+  .glass-demo .glass {
+    padding: 6px 18px;
+    border-radius: 999px;
+    font-size: 13px;
+    font-weight: 600;
+    font-variant-numeric: tabular-nums;
+  }
+  .range {
+    width: 100%;
+    accent-color: var(--accent);
+    cursor: pointer;
   }
   .about {
     padding: 4px 18px 16px;

@@ -274,16 +274,16 @@
     </div>
 
     <div class="row">
-      <div class="group glass">
-        <button class="btn" title={st.paused ? 'Смотреть (k)' : 'Пауза (k)'} onclick={toggle}>
+      <div class="group">
+        <button class="btn glass" title={st.paused ? 'Смотреть (k)' : 'Пауза (k)'} onclick={toggle}>
           {#if st.paused}<Play size={22} fill="currentColor" />{:else}<Pause size={22} fill="currentColor" />{/if}
         </button>
         {#if hasNext}
-          <button class="btn" title="Следующая серия (Shift+N)" onclick={onNext}>
+          <button class="btn glass" title="Следующая серия (Shift+N)" onclick={onNext}>
             <SkipForward size={20} fill="currentColor" />
           </button>
         {/if}
-        <div class="vol" class:open={volDrag}>
+        <div class="vol glass" class:open={volDrag}>
           <button class="btn" title={st.muted ? 'Включить звук (m)' : 'Без звука (m)'} onclick={() => onMute(!st.muted)}>
             {#if level === 0}<VolumeX size={21} />{:else if level < 0.5}<Volume1 size={21} />{:else}<Volume2 size={21} />{/if}
           </button>
@@ -307,19 +307,19 @@
         </div>
       </div>
 
-      <div class="group glass time">
+      <div class="glass time">
         <span>{fmt(t)} <i>/</i> {fmt(st.dur)}</span>
         {#if chapter(t)}<span class="chap">· {chapter(t)}</span>{/if}
       </div>
 
       <div class="sp"></div>
 
-      <div class="group glass">
-        <button class="btn gear" class:spun={menuOpen} title="Настройки" onclick={() => (menuOpen = !menuOpen)}>
+      <div class="group">
+        <button class="btn glass gear" class:spun={menuOpen} title="Настройки" onclick={() => (menuOpen = !menuOpen)}>
           <Settings size={20} />
           {#if st.rate !== 1}<span class="badge">{st.rate}×</span>{/if}
         </button>
-        <button class="btn" title={fs ? 'Выйти из полноэкранного режима (f)' : 'Во весь экран (f)'} onclick={onFullscreen}>
+        <button class="btn glass" title={fs ? 'Выйти из полноэкранного режима (f)' : 'Во весь экран (f)'} onclick={onFullscreen}>
           {#if fs}<Minimize size={20} />{:else}<Maximize size={20} />{/if}
         </button>
       </div>
@@ -496,11 +496,11 @@
     color: #ffe08c;
   }
 
-  /* ---- кнопки: стеклянные «пилюли», как в новом плеере YouTube ---- */
+  /* ---- кнопки: отдельные стеклянные круги и пилюли, как в iOS и новом YouTube ---- */
   .row {
     display: flex;
     align-items: center;
-    gap: 8px;
+    gap: 10px;
   }
   .sp {
     flex: 1;
@@ -508,28 +508,42 @@
   .group {
     display: flex;
     align-items: center;
-    height: 44px;
-    padding: 0 4px;
-    border-radius: 999px;
+    gap: 8px;
   }
   .btn {
     position: relative;
     display: grid;
     place-items: center;
-    width: 40px;
-    height: 36px;
-    border-radius: 999px;
+    flex: none;
+    width: 44px;
+    height: 44px;
+    border-radius: 50%;
     color: #fff;
-    filter: drop-shadow(0 1px 2px rgba(0, 0, 0, 0.4));
     transition:
       background 0.15s,
+      border-color 0.15s,
       transform 0.1s;
-  }
-  .btn:hover {
-    background: rgba(255, 255, 255, 0.14);
   }
   .btn:active {
     transform: scale(0.92);
+  }
+  .glass.time,
+  .vol {
+    display: flex;
+    align-items: center;
+    height: 44px;
+    border-radius: 999px;
+  }
+  /* Кнопка звука внутри пилюли громкости — без своего стекла. Фон и рамку глобального
+     .btn снимаем, иначе поверх стекла лежит тёмный непрозрачный круг. */
+  .vol .btn {
+    width: 42px;
+    height: 42px;
+    background: transparent;
+    border-color: transparent;
+  }
+  .vol .btn:hover {
+    background: rgba(255, 255, 255, 0.12);
   }
   .gear :global(svg) {
     transition: transform 0.3s;
@@ -539,8 +553,8 @@
   }
   .badge {
     position: absolute;
-    right: 0;
-    top: 1px;
+    right: -4px;
+    top: -4px;
     padding: 0 4px;
     border-radius: 6px;
     background: var(--accent);
@@ -562,11 +576,7 @@
     color: #ffe08c;
   }
 
-  /* Громкость раскрывается при наведении. */
-  .vol {
-    display: flex;
-    align-items: center;
-  }
+  /* Громкость раскрывается при наведении: круг вытягивается в пилюлю. */
   .vslider {
     position: relative;
     width: 0;
@@ -582,7 +592,7 @@
   .vol:hover .vslider,
   .vol.open .vslider {
     width: 72px;
-    margin-right: 10px;
+    margin-right: 14px;
     overflow: visible;
   }
   .vtrack {
@@ -619,7 +629,9 @@
     width: 280px;
     padding: 10px;
     border-radius: 18px;
-    background: linear-gradient(160deg, rgba(255, 255, 255, 0.16), rgba(255, 255, 255, 0.05)), rgba(18, 18, 18, 0.62);
+    /* Меню с текстом темнее остального стекла, иначе на светлой картинке не прочесть. */
+    background: linear-gradient(160deg, rgba(255, 255, 255, 0.16), rgba(255, 255, 255, 0.05)),
+      rgba(18, 18, 18, calc(var(--glass-tint) * 0.6 + 0.4));
     animation: rise 0.15s ease-out;
   }
   @keyframes rise {

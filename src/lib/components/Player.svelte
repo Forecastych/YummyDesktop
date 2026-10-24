@@ -72,6 +72,9 @@
   /** Попытки запустить плеер, у которого ещё нет <video>: раз в ~1.5 с, около 12 секунд. */
   const PLAY_EVERY = 5
   const PLAY_TRIES = 8
+  /** Родные кнопки — только если видео так и не появилось. Kodik на медленной сети
+   *  создаёт <video> секунд через 15–25 после нажатия. */
+  const GIVE_UP_AFTER = 45_000
   const IDLE: VideoState = { paused: true, time: 0, dur: 0, buf: 0, vol: 1, muted: false, rate: 1, waiting: false }
 
   let agent = $state(false)
@@ -84,6 +87,7 @@
   /** Запустить серию, как только плеер будет готов: после «следующей серии» или смены серии на ходу. */
   let wantPlay = false
   let playTries = 0
+  let playSince = 0
 
   const custom = $derived(isTauri && !native)
   const cover = $derived(custom && (!started || !hasVideo))
@@ -117,6 +121,7 @@
       st = { ...IDLE }
       started = wantPlay
       playTries = 0
+      playSince = Date.now()
     })
     const born = Date.now()
     let tick = 0
@@ -131,12 +136,15 @@
       }
       if (!wantPlay || tick % PLAY_EVERY) return
       if (hasVideo && !st.paused) return void (wantPlay = false)
-      if (++playTries > PLAY_TRIES) {
+      if (++playTries <= PLAY_TRIES) return cmd('play')
+      // Жать больше не будем, но видео может ещё догрузиться — ждём его.
+      if (hasVideo) {
         wantPlay = false
-        if (!hasVideo) giveUp()
-        return
+        cmd('play')
+      } else if (Date.now() - playSince > GIVE_UP_AFTER) {
+        wantPlay = false
+        giveUp()
       }
-      cmd('play')
     }, PULSE)
     return () => clearInterval(id)
   })
@@ -153,6 +161,7 @@
     if (hasVideo && st.dur > 0) return cmd('play')
     wantPlay = true
     playTries = 0
+    playSince = Date.now()
     cmd('play')
   }
 
@@ -215,6 +224,7 @@
   function next() {
     cancelCountdown()
     wantPlay = true
+    playSince = Date.now()
     onNext()
   }
 

@@ -23,6 +23,8 @@ export interface Settings {
   /** Экономия трафика: постеры меньшего размера, без фоновых баннеров. */
   dataSaver: boolean
   reduceMotion: boolean
+  /** Прозрачность «жидкого стекла» (кнопки плеера, всплывашки), %: 100 — почти прозрачное. */
+  glassClarity: number
   /** Масштаб интерфейса: 1 — как в браузере на 100%. */
   uiScale: number
   /** Потолок дискового кэша картинок, МБ. Сверх него удаляются давно не открывавшиеся. */
@@ -44,9 +46,12 @@ const defaults: Settings = {
   preferredPlayer: '',
   dataSaver: false,
   reduceMotion: false,
+  glassClarity: 65,
   uiScale: 1.2,
   imageCacheMb: 300,
 }
+
+export const GLASS_CLARITY = { min: 10, max: 90, def: defaults.glassClarity }
 
 export const settings: Settings = $state({ ...defaults, ...load<Partial<Settings>>('settings', {}) })
 
@@ -63,6 +68,13 @@ $effect.root(() => {
   })
   $effect(() => {
     setZoom(settings.uiScale)
+  })
+  $effect(() => {
+    // Прозрачнее — меньше тонировки и размытия. 65% — прежний вид: тон 0.35, размытие 14px.
+    const k = (100 - settings.glassClarity) / 100
+    const root = document.documentElement.style
+    root.setProperty('--glass-tint', k.toFixed(2))
+    root.setProperty('--glass-blur', `${Math.round(6 + k * 23)}px`)
   })
   $effect(() => {
     imgCacheSetLimit(settings.imageCacheMb)

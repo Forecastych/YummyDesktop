@@ -198,17 +198,22 @@ img {
   pointer-events: none;
 }
 
-/* «Жидкое стекло»: размытие подложки, блик сверху и тонкая светлая кромка. */
+/* «Жидкое стекло»: размытие подложки, блик сверху и тонкая светлая кромка.
+   --glass-tint и --glass-blur задаёт настройка «Прозрачность стекла» (settings.svelte.ts). */
+:root {
+  --glass-tint: 0.35;
+  --glass-blur: 14px;
+}
 .glass {
   background: linear-gradient(160deg, rgba(255, 255, 255, 0.2) 0%, rgba(255, 255, 255, 0.06) 45%, rgba(255, 255, 255, 0.1) 100%),
-    rgba(20, 20, 20, 0.35);
+    rgba(20, 20, 20, var(--glass-tint));
   border: 1px solid rgba(255, 255, 255, 0.28);
   box-shadow:
     inset 0 1px 0 rgba(255, 255, 255, 0.45),
     inset 0 -1px 0 rgba(255, 255, 255, 0.08),
     0 8px 24px rgba(0, 0, 0, 0.35);
-  -webkit-backdrop-filter: blur(14px) saturate(180%);
-  backdrop-filter: blur(14px) saturate(180%);
+  -webkit-backdrop-filter: blur(var(--glass-blur)) saturate(180%);
+  backdrop-filter: blur(var(--glass-blur)) saturate(180%);
   color: #fff;
   text-shadow: 0 1px 2px rgba(0, 0, 0, 0.35);
   transition: background 0.2s, border-color 0.2s, transform 0.15s, box-shadow 0.2s;
@@ -216,7 +221,7 @@ img {
 button.glass:hover,
 a.glass:hover {
   background: linear-gradient(160deg, rgba(255, 255, 255, 0.3) 0%, rgba(255, 255, 255, 0.1) 45%, rgba(255, 255, 255, 0.16) 100%),
-    rgba(20, 20, 20, 0.3);
+    rgba(20, 20, 20, calc(var(--glass-tint) * 0.85));
   border-color: rgba(255, 255, 255, 0.45);
 }
 button.glass:active {
