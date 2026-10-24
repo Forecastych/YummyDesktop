@@ -25,6 +25,7 @@
   import { follows } from '../lib/stores/follows.svelte'
   import { feedWatches, recent, removeFromHistory, syncHistory, watchLine } from '../lib/stores/history.svelte'
   import { picks } from '../lib/stores/smart.svelte'
+  import { TROLL_IDS } from '../lib/troll'
   import { glideBy, wheelScroll } from '../lib/wheel'
 
   const SEASONS = ['', 'зимы', 'весны', 'лета', 'осени']
@@ -59,7 +60,7 @@
   )
 
   // Рекомендации сайта приходят только вошедшим; иначе — своя подборка «Для вас» по истории.
-  const siteRecs = $derived(feed.data?.recommends ?? [])
+  const siteRecs = $derived((feed.data?.recommends ?? []).filter((a) => !TROLL_IDS.has(a.anime_id)))
   const localRecs = $derived(siteRecs.length ? [] : picks().slice(0, 20))
 
   syncHistory()

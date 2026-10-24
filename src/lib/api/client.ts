@@ -1,3 +1,4 @@
+import { isTauri } from '../native'
 import { settings } from '../stores/settings.svelte'
 import { load, save } from '../storage'
 
@@ -180,8 +181,25 @@ export function isAbort(e: unknown) {
   return e instanceof DOMException && e.name === 'AbortError'
 }
 
+/**
+ * Дисковый кэш картинок в десктопе (src-tauri/src/imgcache.rs): схема yimg, как и cvh,
+ * на Windows и Android видна как http://yimg.localhost.
+ */
+const IMG_PROXY = !isTauri ? '' : /Windows|Android/.test(navigator.userAgent) ? 'http://yimg.localhost/' : 'yimg://localhost/'
+/** Те же хосты, что пускает Rust; остальное грузится напрямую. */
+const CACHED_HOST = /^(?:[\w-]+\.)*(?:yani\.tv|yummyani\.me|yummy-anime\.ru)$/
+
 /** Картинки приходят протокол-относительными (`//static.yani.tv/...`). */
 export function img(url: string | undefined | null): string {
   if (!url) return ''
-  return url.startsWith('//') ? 'https:' + url : url
+  const abs = url.startsWith('//') ? 'https:' + url : url
+  if (!IMG_PROXY) return abs
+  const m = /^https:\/\/([^/]+)\/(.+)$/.exec(abs)
+  return m && CACHED_HOST.test(m[1]) ? `${IMG_PROXY}${m[1]}/${m[2]}` : abs
+}
+
+/** Тот же адрес, но новый для WebView: упавшую картинку он иначе не перезапросит. */
+export function retryUrl(url: string, attempt: number): string {
+  if (!url || !attempt) return url
+  return `${url}${url.includes('?') ? '&' : '?'}_r=${attempt}`
 }

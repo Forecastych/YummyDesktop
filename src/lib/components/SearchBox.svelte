@@ -84,7 +84,7 @@
 
 <svelte:window onkeydown={globalKey} />
 
-<div class="search" class:open={open && q.trim().length >= 2}>
+<div class="search" data-tauri-drag-region="false" class:open={open && q.trim().length >= 2}>
   <Search size={16} class="icon" />
   <input
     bind:this={input}

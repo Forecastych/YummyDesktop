@@ -1,6 +1,8 @@
 <script lang="ts">
+  import ContextMenu from './lib/components/ContextMenu.svelte'
   import Footer from './lib/components/Footer.svelte'
   import Header from './lib/components/Header.svelte'
+  import Toasts from './lib/components/Toasts.svelte'
   import UpdateBar from './lib/components/UpdateBar.svelte'
   import { isTauri, setFullscreen, setTitle } from './lib/native'
   import { back, match, route } from './lib/router.svelte'
@@ -118,6 +120,8 @@
   {/key}
 </main>
 <Footer />
+<ContextMenu />
+<Toasts />
 
 <style>
   main {

@@ -9,6 +9,9 @@ use tauri::webview::PageLoadEvent;
 use tauri::plugin::{Builder as PluginBuilder, TauriPlugin};
 use tauri::{AppHandle, Emitter, Manager, Runtime, Url, WebviewUrl, WebviewWindowBuilder, WindowEvent, Wry};
 use tauri_plugin_opener::OpenerExt;
+use tauri_plugin_window_state::StateFlags;
+
+mod imgcache;
 
 const SITE_LOGIN_LABEL: &str = "site-login";
 /// Отдельной страницы /login у сайта больше нет (404): форма входа живёт
@@ -160,6 +163,14 @@ fn no_ads<R: Runtime>() -> TauriPlugin<R> {
         .build()
 }
 
+/// Агент для своих кнопок плеера: прячет родной интерфейс и пересылает приложению
+/// состояние <video>. Молчит, пока его не позовёт Player.svelte.
+fn player_agent<R: Runtime>() -> TauriPlugin<R> {
+    PluginBuilder::new("player-agent")
+        .js_init_script_on_all_frames(include_str!("../scripts/player-agent.js"))
+        .build()
+}
+
 // ---- трей: крестик прячет окно, приложение живёт в фоне и шлёт уведомления ----
 
 /// Прятать окно в трей вместо выхода. Настройку присылает фронт.
@@ -223,14 +234,24 @@ fn set_close_to_tray(on: bool) {
 pub fn run() {
     tauri::Builder::default()
         .plugin(tauri_plugin_single_instance::init(|app, _args, _cwd| show_main(app)))
-        .plugin(tauri_plugin_window_state::Builder::default().build())
+        // Рамку окна рисуем сами: сохранённое состояние не должно возвращать системную.
+        .plugin(
+            tauri_plugin_window_state::Builder::default()
+                .with_state_flags(StateFlags::all() & !StateFlags::DECORATIONS)
+                .build(),
+        )
         .plugin(tauri_plugin_notification::init())
         .plugin(tauri_plugin_opener::init())
         .plugin(tauri_plugin_updater::Builder::new().build())
         .plugin(navigation_guard())
         .plugin(no_ads())
+        .plugin(player_agent())
         .register_uri_scheme_protocol(CVH_SCHEME, |_ctx, req| cvh_protocol(req))
-        .setup(|app| Ok(setup_tray(app.handle())?))
+        .register_asynchronous_uri_scheme_protocol(imgcache::SCHEME, imgcache::protocol)
+        .setup(|app| {
+            imgcache::init(app.handle())?;
+            Ok(setup_tray(app.handle())?)
+        })
         .on_window_event(|window, event| {
             if let WindowEvent::CloseRequested { api, .. } = event {
                 if window.label() == "main" && CLOSE_TO_TRAY.load(Ordering::Relaxed) {
@@ -245,7 +266,10 @@ pub fn run() {
             site_login_start,
             site_login_close,
             tray_set_notify,
-            set_close_to_tray
+            set_close_to_tray,
+            imgcache::img_cache_stats,
+            imgcache::img_cache_set_limit,
+            imgcache::img_cache_clear
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

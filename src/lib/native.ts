@@ -85,6 +85,22 @@ async function invokeSafe(cmd: string, args?: Record<string, unknown>) {
   await invoke(cmd, args).catch(() => {})
 }
 
+async function invokeValue<T>(cmd: string, args?: Record<string, unknown>): Promise<T | null> {
+  if (!isTauri) return null
+  const { invoke } = await import('@tauri-apps/api/core')
+  return invoke<T>(cmd, args).catch(() => null)
+}
+
+/** Дисковый кэш картинок; размеры в байтах. */
+export interface ImgCacheStats {
+  size: number
+  files: number
+  limit: number
+}
+export const imgCacheStats = () => invokeValue<ImgCacheStats>('img_cache_stats')
+export const imgCacheSetLimit = (mb: number) => invokeValue<ImgCacheStats>('img_cache_set_limit', { mb })
+export const imgCacheClear = () => invokeValue<ImgCacheStats>('img_cache_clear')
+
 /** Галочка «Уведомления» в меню трея. */
 export const traySetNotify = (on: boolean) => invokeSafe('tray_set_notify', { on })
 

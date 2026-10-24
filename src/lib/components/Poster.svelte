@@ -1,6 +1,6 @@
 <script lang="ts">
   import { ImageOff } from '@lucide/svelte'
-  import { img } from '../api/client'
+  import { img, retryUrl } from '../api/client'
   import type { Posters } from '../api/types'
   import { settings } from '../stores/settings.svelte'
 
@@ -13,9 +13,28 @@
   }
   let { poster, alt, sizes = '180px', eager = false }: Props = $props()
 
-  // Сбрасываются при смене постера: карточку могут переиспользовать под другой тайтл.
-  let loaded = $derived.by(() => (void poster, false))
-  let failed = $derived.by(() => (void poster, false))
+  const base = $derived(img(poster?.big || poster?.medium || poster?.fullsize))
+
+  // Сбрасываются при смене адреса, а не объекта: тайтл приходит сначала из кэша, потом
+  // свежим с сервера — объект новый, картинка та же, и второго onload уже не будет.
+  // Сброс по объекту оставлял загруженный постер невидимым (opacity: 0).
+  let loaded = $derived.by(() => (void base, false))
+  let failed = $derived.by(() => (void base, false))
+  // CDN иногда отвечает ошибкой на первый запрос и тут же отдаёт со второго.
+  let attempt = $derived.by(() => (void base, 0))
+  const RETRIES = 2
+
+  function onError() {
+    if (attempt >= RETRIES) return (failed = true)
+    const b = base
+    const next = attempt + 1
+    setTimeout(() => base === b && (attempt = next), 1200 * next)
+  }
+
+  /** Картинка из кэша браузера может догрузиться раньше, чем повесится onload. */
+  function seen(el: HTMLImageElement) {
+    if (el.complete && el.naturalWidth) loaded = true
+  }
 
   // Браузер сам выберет файл под реальную ширину и плотность экрана.
   const srcset = $derived.by(() => {
@@ -36,7 +55,7 @@
       .map(([u, w]) => `${img(u)} ${w}w`)
       .join(', ')
   })
-  const src = $derived(img(poster?.big || poster?.medium || poster?.fullsize))
+  const src = $derived(retryUrl(base, attempt))
 </script>
 
 <div class="poster" class:loaded>
@@ -46,7 +65,7 @@
   {:else}
     <img
       {src}
-      {srcset}
+      srcset={attempt ? undefined : srcset}
       {sizes}
       {alt}
       width="250"
@@ -55,7 +74,8 @@
       decoding="async"
       fetchpriority={eager ? 'high' : 'auto'}
       onload={() => (loaded = true)}
-      onerror={() => (failed = true)}
+      onerror={onError}
+      {@attach seen}
     />
   {/if}
 </div>

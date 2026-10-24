@@ -9,6 +9,7 @@ import { Api } from '../api/endpoints'
 import type { AnimeShort, ListId, UserRecommendation } from '../api/types'
 import { MIN_USER_VOTES, userVotes } from '../format'
 import { load, save } from '../storage'
+import { SENSITIVE_GENRES, TROLL_IDS, suspiciousLink } from '../troll'
 import { auth } from './auth.svelte'
 import { history } from './history.svelte'
 
@@ -90,6 +91,8 @@ const ROW_SEEDS = 4
 const PER_SEED = 24
 const ENRICH = 200
 const STALE = 6 * 3600_000
+/** Меняется вместе с правилами отбора — старая подборка из localStorage пересоберётся. */
+const RULES = 'v2'
 /** Формат: короткометражки и спешлы — «добивка» к сериалу, в общей ленте им место ниже. */
 const FORMAT: Record<string, number> = { tv: 1, movie: 1, ona: 0.9, ova: 0.8, special: 0.65, 'short-movie': 0.45, music: 0.4, clip: 0.4 }
 
@@ -213,7 +216,7 @@ async function build(force: boolean) {
     const positive = raw.filter((s) => !s.negative && s.weight > 0).sort((a, b) => b.weight - a.weight)
     const negative = raw.filter((s) => s.negative)
     const seeds = positive.slice(0, MAX_SEEDS)
-    const signature = seeds.map((s) => s.id).join(',') + '|' + negative.map((s) => s.id).join(',')
+    const signature = RULES + '|' + seeds.map((s) => s.id).join(',') + '|' + negative.map((s) => s.id).join(',')
 
     if (!force && signature === smart.data.signature && Date.now() - smart.data.builtAt < STALE) return
     if (!seeds.length) {
@@ -244,12 +247,12 @@ async function build(force: boolean) {
     jobs.forEach((j, k) => {
       const w = j.s.weight / maxW
       results[k].forEach((a, rank) => {
-        if (seedIds.has(a.anime_id)) return
+        if (seedIds.has(a.anime_id) || TROLL_IDS.has(a.anime_id)) return
         let gain: number
         let votes = 0
         if (j.users) {
           votes = userVotes(a.likes)
-          if (votes < MIN_USER_VOTES) return
+          if (votes < MIN_USER_VOTES || suspiciousLink(a, a.likes)) return
           // Доверие растёт с числом голосов: 2 голоса — шутка двух людей, 30 — консенсус.
           gain = (w * 1.2 * (votes / (votes + 4))) / (1 + rank * 0.08)
         } else {
@@ -282,8 +285,13 @@ async function build(force: boolean) {
     }
     const peak = Math.max(1e-6, ...[...profile.values()].map(Math.abs))
 
-    for (const c of cands.values()) {
+    for (const [id, c] of cands) {
       const full = info.get(c.anime.anime_id)
+      // Эротику и «не японское» советуем, только если такие жанры есть в затравках со знаком плюс.
+      if (full?.genres?.some((g) => SENSITIVE_GENRES.has(g.alias) && !((profile.get(g.id) ?? 0) > 0))) {
+        cands.delete(id)
+        continue
+      }
       if (full) c.anime = lite(full)
       const g = c.anime.genres
       let affinity = 0
@@ -331,7 +339,7 @@ export function startSmartBuilder() {
 // ---------- выдача ----------
 
 export function passes(a: Lite, f: SmartFilter = smartFilter, mine?: Set<number>): boolean {
-  if (hidden[a.anime_id]) return false
+  if (hidden[a.anime_id] || TROLL_IDS.has(a.anime_id)) return false
   if (f.hide_mine && mine?.has(a.anime_id)) return false
   if (f.genres.length && !f.genres.every((g) => a.genres?.includes(g))) return false
   if (f.exclude_genres.length && a.genres?.some((g) => f.exclude_genres.includes(g))) return false

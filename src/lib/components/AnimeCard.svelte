@@ -1,9 +1,11 @@
 <script lang="ts">
   import { Star, X } from '@lucide/svelte'
+  import { animeMenu } from '../animeMenu'
   import type { AnimeShort } from '../api/types'
   import { avgColor, rating } from '../format'
   import { prefetchAnime } from '../prefetch'
   import { link } from '../router.svelte'
+  import { openMenu } from '../stores/menu.svelte'
   import Poster from './Poster.svelte'
 
   interface Props {
@@ -21,7 +23,13 @@
   const r = $derived(rating(anime))
 </script>
 
-<a class="card" href={link(`/anime/${anime.anime_url}`)} use:prefetchAnime={anime.anime_url} title={anime.title}>
+<a
+  class="card"
+  href={link(`/anime/${anime.anime_url}`)}
+  use:prefetchAnime={anime.anime_url}
+  title={anime.title}
+  oncontextmenu={(e) => openMenu(e, animeMenu(anime))}
+>
   <Poster poster={anime.poster} alt={anime.title} {eager} />
   {#if badge}<span class="badge">{badge}</span>{/if}
   {#if r}

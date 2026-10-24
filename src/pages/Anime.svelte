@@ -33,8 +33,10 @@
   import { auth } from '../lib/stores/auth.svelte'
   import { isDubSubscribed, toggleDubSub } from '../lib/stores/dubsubs.svelte'
   import { isFollowed, seen, toggleFollow } from '../lib/stores/follows.svelte'
+  import { isFav, listOf, noteState, setListFor, toggleFavFor } from '../lib/stores/lists.svelte'
   import { history, markDone, mergeWatched, progressOf } from '../lib/stores/history.svelte'
   import { settings } from '../lib/stores/settings.svelte'
+  import { suspiciousLink } from '../lib/troll'
   import type { BloggerVideo } from '../lib/api/types'
   import VideoCard from '../lib/components/VideoCard.svelte'
 
@@ -56,7 +58,9 @@
     const id = q.data?.anime_id
     return id ? Api.similar(id, true, 24, { signal }) : []
   })
-  const watchedList = $derived((watched.data ?? []).filter((r) => userVotes(r.likes) >= MIN_USER_VOTES))
+  const watchedList = $derived(
+    (watched.data ?? []).filter((r) => userVotes(r.likes) >= MIN_USER_VOTES && !suspiciousLink(r, r.likes)),
+  )
 
   const LIST_TITLES: [number, string][] = [
     [0, 'Смотрят'],
@@ -266,15 +270,17 @@
   // ---------- списки, избранное, оценка ----------
 
   let actionError = $state('')
-  let list = $state<ListId | null>(null)
-  let fav = $state(false)
   let myRate = $state(0)
   let hoverRate = $state(0)
 
+  // Список и избранное — из общего стора: карточки и меню по ПКМ меняют их же.
+  const list = $derived(a ? listOf(a.anime_id) : null)
+  const fav = $derived(a ? isFav(a.anime_id) : false)
+
   $effect(() => {
-    list = (a?.user?.list?.list?.id as ListId | undefined) ?? null
-    fav = !!a?.user?.list?.is_fav
     myRate = a?.user?.rating ?? 0
+    const x = a
+    if (x) untrack(() => noteState(x.anime_id, (x.user?.list?.list?.id as ListId | undefined) ?? null, !!x.user?.list?.is_fav))
   })
 
   async function mutate(fn: () => Promise<unknown>, rollback: () => void) {
@@ -289,22 +295,11 @@
   }
 
   function setList(id: ListId | null) {
-    if (!a) return
-    const prev = list
-    list = id
-    mutate(
-      () => (id == null ? Api.removeFromList(a.anime_id) : Api.setList(a.anime_id, id)),
-      () => (list = prev),
-    )
+    if (a) setListFor(a, id, true)
   }
 
   function toggleFav() {
-    if (!a) return
-    fav = !fav
-    mutate(
-      () => Api.setFav(a.anime_id, fav),
-      () => (fav = !fav),
-    )
+    if (a) toggleFavFor(a, true)
   }
 
   function rate(n: number) {

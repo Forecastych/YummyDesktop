@@ -1,11 +1,30 @@
 <script lang="ts">
   import { RefreshCw } from '@lucide/svelte'
   import { clearCache } from '../lib/api/client'
-  import { isTauri, openExternal } from '../lib/native'
-  import { settings, UI_SCALES } from '../lib/stores/settings.svelte'
+  import { imgCacheClear, imgCacheStats, isTauri, openExternal, type ImgCacheStats } from '../lib/native'
+  import { IMAGE_CACHE_SIZES, settings, UI_SCALES } from '../lib/stores/settings.svelte'
   import { checkUpdates, installUpdate, updates } from '../lib/stores/updates.svelte'
 
   let cleared = $state(false)
+  let images: ImgCacheStats | null = $state(null)
+  let imagesBusy = $state(false)
+
+  const mb = (bytes: number) => (bytes < 1024 * 1024 ? '< 1' : Math.round(bytes / 1024 / 1024).toLocaleString('ru'))
+
+  // Счётчики живут в Rust и меняются фоном (докачка, вытеснение) — обновляем, пока открыта страница.
+  $effect(() => {
+    if (!isTauri) return
+    const tick = async () => (images = (await imgCacheStats()) ?? images)
+    tick()
+    const t = setInterval(tick, 3000)
+    return () => clearInterval(t)
+  })
+
+  async function clearImages() {
+    imagesBusy = true
+    images = (await imgCacheClear()) ?? images
+    imagesBusy = false
+  }
 
   function clearApiCache() {
     clearCache()
@@ -77,6 +96,32 @@
       </span>
       <button class="btn small" onclick={clearApiCache}>{cleared ? 'Очищено' : 'Очистить'}</button>
     </div>
+    {#if isTauri}
+      <label class="row">
+        <span class="text">
+          <span>Кэш картинок</span>
+          <small>
+            Постеры и аватары сохраняются на диск и при следующем показе не качаются заново.
+            {#if images}Занято {mb(images.size)} МБ, файлов: {images.files.toLocaleString('ru')}.{/if}
+            Сверх лимита удаляются давно не открывавшиеся.
+          </small>
+        </span>
+        <select class="select narrow" bind:value={settings.imageCacheMb}>
+          {#each IMAGE_CACHE_SIZES as s (s)}
+            <option value={s}>{s >= 1000 ? `${s / 1000} ГБ` : `${s} МБ`}</option>
+          {/each}
+        </select>
+      </label>
+      <div class="row">
+        <span class="text">
+          <span>Очистить кэш картинок</span>
+          <small>Картинки скачаются заново по мере просмотра.</small>
+        </span>
+        <button class="btn small" disabled={imagesBusy || !images?.files} onclick={clearImages}>
+          {imagesBusy ? 'Очищаю…' : images && !images.files ? 'Пусто' : 'Очистить'}
+        </button>
+      </div>
+    {/if}
 
     <h2>Для разработчиков</h2>
     <label class="row">

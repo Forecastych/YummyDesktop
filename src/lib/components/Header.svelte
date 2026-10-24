@@ -5,7 +5,9 @@
   import { auth } from '../stores/auth.svelte'
   import { followsCount } from '../stores/follows.svelte'
   import { notifs } from '../stores/notifications.svelte'
+  import { isTauri } from '../native'
   import SearchBox from './SearchBox.svelte'
+  import WindowControls from './WindowControls.svelte'
 
   interface NavItem {
     title: string
@@ -54,7 +56,8 @@
   const fresh = $derived(followsCount() + (auth.profile ? notifs.unread : 0))
 </script>
 
-<header>
+<!-- В Tauri шапка — это и заголовок окна: за пустое место её можно тянуть. -->
+<header class:framed={isTauri} data-tauri-drag-region="deep">
   <div class="inner container">
     <a class="logo" href="#/" aria-label="На главную">
       <span class="mark">Y</span><span class="name">YummyAnime <b>Desktop</b></span>
@@ -68,7 +71,7 @@
             {#if item.children}<ChevronDown size={13} />{/if}
           </a>
           {#if item.children}
-            <div class="menu">
+            <div class="menu" data-tauri-drag-region="false">
               {#each item.children as c (c.href)}
                 <a href="#{c.href}" onclick={(e) => e.currentTarget.blur()}>{c.title}</a>
               {/each}
@@ -105,6 +108,7 @@
       {/if}
     </div>
   </div>
+  <WindowControls />
 </header>
 
 <style>
@@ -116,6 +120,11 @@
     background: var(--panel);
     border-bottom: 1px solid var(--line);
     box-shadow: 0 2px 6px rgba(0, 0, 0, 0.3);
+    user-select: none;
+  }
+  /* Место под кнопки окна (3 × 46px) — контейнер центрируется в оставшейся ширине. */
+  header.framed {
+    padding-right: 138px;
   }
   .inner {
     display: flex;

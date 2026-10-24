@@ -1,7 +1,7 @@
 {
   "$schema": "../node_modules/@tauri-apps/cli/config.schema.json",
   "productName": "YummyAnime Desktop",
-  "version": "0.2.0-a",
+  "version": "0.3.0",
   "identifier": "io.github.yummidesktop",
   "build": {
     "frontendDist": "../dist",
@@ -20,7 +20,10 @@
         "minHeight": 600,
         "resizable": true,
         "center": true,
-        "backgroundColor": "#222222"
+        "decorations": false,
+        "shadow": true,
+        "backgroundColor": "#222222",
+        "additionalBrowserArgs": "--disable-features=msWebOOUI,msPdfOOUI,msSmartScreenProtection --autoplay-policy=no-user-gesture-required"
       }
     ],
     "security": {
@@ -28,7 +31,7 @@
         "default-src": "'self'",
         "script-src": "'self'",
         "style-src": "'self' 'unsafe-inline'",
-        "img-src": "'self' https: data: blob:",
+        "img-src": "'self' https: data: blob: http://yimg.localhost yimg:",
         "media-src": "'self' https:",
         "font-src": "'self' data:",
         "connect-src": "'self' ipc: http://ipc.localhost https://api.yani.tv",

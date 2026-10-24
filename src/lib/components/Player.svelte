@@ -1,13 +1,15 @@
 <script lang="ts">
   import { untrack } from 'svelte'
   import { Play, SkipForward } from '@lucide/svelte'
+  import { img } from '../api/client'
   import { Api } from '../api/endpoints'
   import type { AnimeShort, Video } from '../api/types'
   import { duration as fmt } from '../format'
-  import { cvhPlayerUrl, onNative, setFullscreen } from '../native'
+  import { cvhPlayerUrl, isTauri, onNative, setFullscreen } from '../native'
   import { auth } from '../stores/auth.svelte'
   import { progressOf, setProgress, touch } from '../stores/history.svelte'
   import { settings } from '../stores/settings.svelte'
+  import PlayerControls, { type VideoState } from './PlayerControls.svelte'
 
   interface Props {
     anime: AnimeShort
@@ -18,6 +20,7 @@
   let { anime, video, hasNext, onNext }: Props = $props()
 
   let frame: HTMLIFrameElement | undefined = $state()
+  let box: HTMLDivElement | undefined = $state()
   let time = $state(0)
   let dur = $state(0)
   let toast = $state('')
@@ -60,6 +63,160 @@
   const ed = $derived(video.skips?.ending)
   const inOpening = $derived(!!op && op.length > 0 && time >= op.time && time < op.time + op.length - 1)
   const inEnding = $derived(!!ed && ed.length > 0 && time >= ed.time && time < ed.time + ed.length - 1)
+
+  // ---- свои кнопки: агент внутри фреймов плеера (src-tauri/scripts/player-agent.js) ----
+  // Агент есть только в приложении. Не ответил или не нашёл видео — показываем родной
+  // интерфейс плеера, как раньше.
+  const AGENT_WAIT = 6000
+  const PULSE = 300
+  /** Попытки запустить плеер, у которого ещё нет <video>: раз в ~1.5 с, около 12 секунд. */
+  const PLAY_EVERY = 5
+  const PLAY_TRIES = 8
+  const IDLE: VideoState = { paused: true, time: 0, dur: 0, buf: 0, vol: 1, muted: false, rate: 1, waiting: false }
+
+  let agent = $state(false)
+  let native = $state(!isTauri)
+  let hasVideo = $state(false)
+  let st = $state<VideoState>({ ...IDLE })
+  /** Нажали «смотреть» (или серия запустилась сама) — заставку с постером больше не показываем. */
+  let started = $state(false)
+  let fs = $state(false)
+  /** Запустить серию, как только плеер будет готов: после «следующей серии» или смены серии на ходу. */
+  let wantPlay = false
+  let playTries = 0
+
+  const custom = $derived(isTauri && !native)
+  const cover = $derived(custom && (!started || !hasVideo))
+  const backdrop = $derived(img(anime.poster?.big || anime.poster?.medium))
+
+  function cmd(name: string, extra: Record<string, unknown> = {}) {
+    frame?.contentWindow?.postMessage({ __yd: 1, cmd: name, ...extra }, '*')
+  }
+
+  /** Сообщение от агента из нашего iframe или из фреймов внутри него. */
+  function fromPlayer(src: MessageEventSource | null) {
+    const own = frame?.contentWindow
+    let w = src as Window | null
+    for (let i = 0; i < 8 && w && own; i++) {
+      if (w === own) return true
+      if (w === window || w.parent === w) return false
+      w = w.parent
+    }
+    return false
+  }
+
+  $effect(() => {
+    const f = frame
+    if (!f || !isTauri) return
+    untrack(() => {
+      // Новый iframe: другая серия или возврат из трея. Если видео шло — продолжаем.
+      if (hasVideo && !st.paused) wantPlay = true
+      agent = false
+      native = false
+      hasVideo = false
+      st = { ...IDLE }
+      started = wantPlay
+      playTries = 0
+    })
+    const born = Date.now()
+    let tick = 0
+    const id = setInterval(() => {
+      tick++
+      if (!agent) {
+        if (Date.now() - born > AGENT_WAIT) {
+          native = true
+          clearInterval(id)
+        } else f.contentWindow?.postMessage({ __yd: 1, cmd: 'init' }, '*')
+        return
+      }
+      if (!wantPlay || tick % PLAY_EVERY) return
+      if (hasVideo && !st.paused) return void (wantPlay = false)
+      if (++playTries > PLAY_TRIES) {
+        wantPlay = false
+        if (!hasVideo) giveUp()
+        return
+      }
+      cmd('play')
+    }, PULSE)
+    return () => clearInterval(id)
+  })
+
+  /** Агент так и не нашёл видео — отдаём управление родным кнопкам плеера. */
+  function giveUp() {
+    cmd('reveal')
+    native = true
+    flash('Плеер не отдал управление — включены его кнопки')
+  }
+
+  function play() {
+    started = true
+    if (hasVideo && st.dur > 0) return cmd('play')
+    wantPlay = true
+    playTries = 0
+    cmd('play')
+  }
+
+  function togglePlay() {
+    if (st.paused) play()
+    else cmd('pause')
+  }
+
+  function onAgent(d: Record<string, unknown>) {
+    switch (d.ev) {
+      case 'hello':
+        agent = true
+        break
+      case 'video':
+        if (!hasVideo) {
+          hasVideo = true
+          // Громкость общая для всех плееров — выставляем сразу, как появилось видео.
+          cmd('volume', { v: settings.playerVolume })
+          cmd('muted', { v: settings.playerMuted })
+        }
+        break
+      case 'state':
+        if (!hasVideo) onAgent({ ev: 'video' })
+        st = {
+          paused: !!d.paused,
+          time: Number(d.time) || 0,
+          dur: Number(d.dur) || 0,
+          buf: Number(d.buf) || 0,
+          vol: Number(d.vol ?? 1),
+          muted: !!d.muted,
+          rate: Number(d.rate) || 1,
+          waiting: !!d.waiting,
+        }
+        if (!st.paused) started = true
+        if (st.dur > 0) dur = st.dur
+        // До старта видео стоит на нуле: перемотка на конец опенинга до загрузки потерялась бы.
+        if (!st.paused || st.time > 0) onTime(st.time)
+        break
+      case 'ended':
+        ended()
+        break
+    }
+  }
+
+  function setVolume(v: number) {
+    settings.playerVolume = v
+    cmd('volume', { v })
+  }
+
+  function setMuted(m: boolean) {
+    settings.playerMuted = m
+    cmd('muted', { v: m })
+  }
+
+  function toggleFullscreen() {
+    if (document.fullscreenElement) document.exitFullscreen().catch(() => {})
+    else (custom ? box : frame)?.requestFullscreen().catch(() => {})
+  }
+
+  function next() {
+    cancelCountdown()
+    wantPlay = true
+    onNext()
+  }
 
   // Состояние, которое сбрасывается при смене серии.
   let resumed = false
@@ -127,7 +284,8 @@
   }
 
   function seek(seconds: number) {
-    send('seek', { seconds: Math.floor(seconds) })
+    if (hasVideo) cmd('seek', { t: seconds })
+    else send('seek', { seconds: Math.floor(seconds) })
   }
 
   function flash(text: string) {
@@ -144,7 +302,7 @@
   function skipEnding() {
     if (!ed) return
     skippedEd = true
-    if (hasNext && settings.autoNext) onNext()
+    if (hasNext && settings.autoNext) next()
     else seek(ed.time + ed.length)
   }
 
@@ -153,10 +311,7 @@
     countdown = 5
     countdownTimer = setInterval(() => {
       countdown--
-      if (countdown <= 0) {
-        cancelCountdown()
-        onNext()
-      }
+      if (countdown <= 0) next()
     }, 1000)
   }
 
@@ -191,8 +346,24 @@
     }
   }
 
+  function ended() {
+    if (dur > 0) {
+      setProgress(anime.anime_id, video.number, dur, dur)
+      trackWatch(dur)
+      flushWatch()
+    }
+    startCountdown()
+  }
+
   function onMessage(e: MessageEvent) {
-    if (!frame || e.source !== frame.contentWindow) return
+    if (!frame) return
+    const a = e.data as Record<string, unknown> | null
+    if (a?.__yd === 1) {
+      if (fromPlayer(e.source)) onAgent(a)
+      return
+    }
+    // Ниже — собственные события Kodik и обёртки CVH. Когда видео ведёт агент, они его дублируют.
+    if (e.source !== frame.contentWindow || hasVideo) return
     const d = e.data as { key?: string; value?: unknown } | null
     if (!d || typeof d.key !== 'string') return
     // Kodik шлёт kodik_player_*, обёртка CVH — те же события без префикса.
@@ -204,29 +375,25 @@
         onTime(Number(d.value) || 0)
         break
       case 'player_video_ended':
-        if (dur > 0) {
-          setProgress(anime.anime_id, video.number, dur, dur)
-          trackWatch(dur)
-          flushWatch()
-        }
-        startCountdown()
+        ended()
         break
     }
   }
 
-  // Полноэкранный режим iframe растягивает только webview — растягиваем и окно.
+  // Полноэкранный режим растягивает только webview — растягиваем и окно.
   function onFullscreen() {
-    setFullscreen(!!document.fullscreenElement).catch(() => {})
+    fs = !!document.fullscreenElement
+    setFullscreen(fs).catch(() => {})
   }
 </script>
 
 <svelte:window onmessage={onMessage} onbeforeunload={() => flushWatch(true)} />
 <svelte:document onfullscreenchange={onFullscreen} />
 
-<div class="player">
+<div class="player" class:fs bind:this={box}>
   {#if stopped}
     <button class="stopped" onclick={resume}>
-      <Play size={42} />
+      <span class="glass play"><Play size={34} /></span>
       <span>Пауза: окно было свёрнуто в трей</span>
       {#if time > 0}<small>Продолжить с {fmt(time)}</small>{/if}
     </button>
@@ -242,31 +409,59 @@
       scrolling="no"
     ></iframe>
   {/key}
+
+  {#if cover}
+    <!-- Пока видео не пошло: свой постер вместо чужой заставки плеера. -->
+    <button class="cover" onclick={play} disabled={started}>
+      {#if backdrop}<img src={backdrop} alt="" />{/if}
+      {#if started}
+        <span class="spin" aria-hidden="true"></span>
+      {:else}
+        <span class="glass play"><Play size={34} fill="currentColor" /></span>
+        <span class="cap">Серия {video.number}</span>
+      {/if}
+    </button>
+  {:else if custom}
+    <PlayerControls
+      {st}
+      {op}
+      {ed}
+      {hasNext}
+      {fs}
+      onToggle={togglePlay}
+      onSeek={seek}
+      onVolume={setVolume}
+      onMute={setMuted}
+      onRate={(v) => cmd('rate', { v })}
+      onFullscreen={toggleFullscreen}
+      onNext={next}
+    />
+  {/if}
   {/if}
 
-  {#if bridge && inOpening && !settings.autoSkipOpening}
-    <button class="skip" onclick={skipOpening}><SkipForward size={15} /> Пропустить опенинг</button>
-  {:else if bridge && inEnding && !settings.autoSkipEnding}
-    <button class="skip" onclick={skipEnding}>
+  {#if (bridge || hasVideo) && inOpening && !settings.autoSkipOpening}
+    <button class="skip glass" onclick={skipOpening}><SkipForward size={15} /> Пропустить опенинг</button>
+  {:else if (bridge || hasVideo) && inEnding && !settings.autoSkipEnding}
+    <button class="skip glass" onclick={skipEnding}>
       <SkipForward size={15} />
       {hasNext && settings.autoNext ? 'Следующая серия' : 'Пропустить эндинг'}
     </button>
   {/if}
 
   {#if countdown > 0}
-    <div class="next">
+    <div class="next glass">
       <div>Следующая серия через {countdown}</div>
       <div class="row">
-        <button class="btn primary small" onclick={() => (cancelCountdown(), onNext())}>Смотреть</button>
-        <button class="btn small" onclick={cancelCountdown}>Отмена</button>
+        <button class="glass pill on" onclick={next}>Смотреть</button>
+        <button class="glass pill" onclick={cancelCountdown}>Отмена</button>
       </div>
     </div>
   {/if}
 
-  {#if toast}<div class="toast">{toast}</div>{/if}
+  {#if toast}<div class="toast glass">{toast}</div>{/if}
 </div>
 
-{#if !bridge}
+{#if !bridge && native}
   <p class="hint">
     Плеер «{video.data.player.replace(/^Плеер\s+/i, '')}» не сообщает время просмотра — автопропуск и продолжение с места работают только в
     Kodik и CVH. Серия всё равно отмечается в истории.
@@ -285,11 +480,20 @@
     width: 100%;
     color: #fff;
   }
+  .stopped .play {
+    display: grid;
+    place-items: center;
+    width: 76px;
+    height: 76px;
+    padding-left: 4px;
+    border-radius: 50%;
+  }
   .stopped small {
     color: var(--muted);
   }
-  .stopped:hover {
-    color: var(--accent);
+  .stopped:hover .play {
+    border-color: rgba(255, 255, 255, 0.5);
+    transform: scale(1.05);
   }
   .player {
     position: relative;
@@ -297,6 +501,64 @@
     max-height: calc(100vh - var(--header-h) - 40px);
     margin: 0 auto;
     background: #000;
+  }
+  .player.fs {
+    max-height: none;
+  }
+  .cover {
+    position: absolute;
+    inset: 0;
+    z-index: 3;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 12px;
+    width: 100%;
+    overflow: hidden;
+    background: #000;
+    color: #fff;
+  }
+  .cover img {
+    position: absolute;
+    inset: -40px;
+    width: calc(100% + 80px);
+    height: calc(100% + 80px);
+    object-fit: cover;
+    filter: blur(28px) brightness(0.45) saturate(1.3);
+  }
+  .cover .play {
+    position: relative;
+    display: grid;
+    place-items: center;
+    width: 84px;
+    height: 84px;
+    padding-left: 5px;
+    border-radius: 50%;
+  }
+  .cover:hover .play {
+    border-color: rgba(255, 255, 255, 0.5);
+    transform: scale(1.06);
+  }
+  .cover .cap {
+    position: relative;
+    font-size: 15px;
+    font-weight: 600;
+    text-shadow: 0 1px 3px rgba(0, 0, 0, 0.6);
+  }
+  .cover .spin {
+    position: relative;
+    width: 54px;
+    height: 54px;
+    border-radius: 50%;
+    border: 4px solid rgba(255, 255, 255, 0.2);
+    border-top-color: #fff;
+    animation: spin 0.8s linear infinite;
+  }
+  @keyframes spin {
+    to {
+      transform: rotate(360deg);
+    }
   }
   iframe {
     position: absolute;
@@ -307,45 +569,46 @@
   }
   .skip {
     position: absolute;
+    z-index: 4;
     right: 16px;
-    bottom: 64px;
+    bottom: 92px;
     display: flex;
     align-items: center;
     gap: 6px;
-    padding: 9px 14px;
-    background: rgba(0, 0, 0, 0.75);
-    border: 1px solid rgba(255, 255, 255, 0.35);
-    border-radius: var(--radius);
-    color: #fff;
+    height: 38px;
+    padding: 0 16px;
+    border-radius: 999px;
     font-weight: 600;
-  }
-  .skip:hover {
-    background: var(--accent);
-    border-color: var(--accent);
   }
   .next {
     position: absolute;
+    z-index: 4;
     right: 16px;
-    bottom: 64px;
+    bottom: 92px;
     padding: 12px 14px;
-    background: rgba(0, 0, 0, 0.85);
-    border-radius: var(--radius);
-    color: #fff;
+    border-radius: 18px;
   }
   .next .row {
     display: flex;
     gap: 6px;
     margin-top: 8px;
   }
+  .pill {
+    height: 30px;
+    padding: 0 14px;
+    border-radius: 999px;
+    font-size: 12px;
+    font-weight: 600;
+    text-transform: uppercase;
+  }
   .toast {
     position: absolute;
+    z-index: 4;
     left: 50%;
     top: 14px;
     transform: translateX(-50%);
-    padding: 6px 12px;
-    background: rgba(0, 0, 0, 0.8);
-    border-radius: var(--radius);
-    color: #fff;
+    padding: 6px 14px;
+    border-radius: 999px;
     font-size: 13px;
     pointer-events: none;
   }
