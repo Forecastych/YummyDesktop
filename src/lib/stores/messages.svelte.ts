@@ -8,6 +8,7 @@ import { notify } from '../native'
 import { errorText } from '../query.svelte'
 import { auth } from './auth.svelte'
 import { settings } from './settings.svelte'
+import { stickersPlain } from '../stickers'
 
 const HOSTS = ['socket1.yani.tv', 'socket2.yani.tv', 'socket3.yani.tv']
 const PING_EVERY = 30_000
@@ -40,9 +41,9 @@ export function onChat(cb: (e: ChatEvent) => void) {
   return () => listeners.delete(cb)
 }
 
-/** Текст без BB-кодов — для превью и уведомлений. */
+/** Текст без BB-кодов и кодов стикеров — для превью и уведомлений. */
 export const plainMessage = (text: string) =>
-  text
+  stickersPlain(text)
     .replace(/\[(?:спойлер|spoiler)(?:=[^\]]*)?\][\s\S]*?\[\/(?:спойлер|spoiler)\]/gi, '(спойлер)')
     .replace(/\[\/?[a-zа-я]+(?:=[^\]]*)?\]/gi, '')
     .trim()

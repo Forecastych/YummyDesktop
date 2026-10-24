@@ -1,10 +1,11 @@
 <script lang="ts">
   import { untrack } from 'svelte'
-  import { ArrowLeft, RotateCw, SendHorizontal } from '@lucide/svelte'
+  import { ArrowLeft, RotateCw, SendHorizontal, Sticker as StickerIcon } from '@lucide/svelte'
   import { img } from '../lib/api/client'
   import { Api } from '../lib/api/endpoints'
   import type { Message } from '../lib/api/types'
   import Loader from '../lib/components/Loader.svelte'
+  import StickerPicker from '../lib/components/StickerPicker.svelte'
   import { ago, isOnline } from '../lib/format'
   import { openExternal, setTitle } from '../lib/native'
   import { errorText } from '../lib/query.svelte'
@@ -12,6 +13,7 @@
   import { richText } from '../lib/sanitize'
   import { auth } from '../lib/stores/auth.svelte'
   import { chat, loadDialogs, onChat, plainMessage, readDialog, touchDialog } from '../lib/stores/messages.svelte'
+  import { code, emojiOnly, soleSticker, splitStickers, stickerUrl, type Sticker } from '../lib/stickers'
 
   /** Собеседник; 0 — только список диалогов. */
   let { peer = 0 }: { peer?: number } = $props()
@@ -145,8 +147,9 @@
   }
 
   let tmpId = 0
-  async function send(retry?: Msg) {
-    const body = (retry?.text ?? text).trim()
+  /** raw — готовый текст мимо поля ввода (стикер); набранное в поле при этом остаётся. */
+  async function send(retry?: Msg, raw?: string) {
+    const body = (retry?.text ?? raw ?? text).trim()
     if (!body || !peer) return
     let m: Msg
     if (retry) {
@@ -154,7 +157,7 @@
       m.failed = false
       m.pending = true
     } else {
-      text = ''
+      if (raw == null) text = ''
       m = {
         id: --tmpId,
         from_id: me,
@@ -185,6 +188,22 @@
       m.pending = false
       m.failed = true
     }
+  }
+
+  let picker = $state(false)
+
+  /** Стикер уходит сразу отдельным сообщением, смайл встаёт в текст на место курсора. */
+  function onPick(s: Sticker) {
+    if (s.kind === 'sticker') {
+      picker = false
+      send(undefined, code(s))
+      return
+    }
+    const at = input?.selectionStart ?? text.length
+    const end = input?.selectionEnd ?? at
+    text = text.slice(0, at) + code(s) + text.slice(end)
+    const caret = at + code(s).length
+    requestAnimationFrame(() => input?.setSelectionRange(caret, caret))
   }
 
   function onKey(e: KeyboardEvent) {
@@ -293,21 +312,32 @@
               <div class="pick muted">Сообщений пока нет — напишите первым.</div>
             {/if}
             {#each items as m, i (m.id)}
+              {@const one = soleSticker(m.text)}
+              {@const emo = emojiOnly(m.text)}
               {#if newDay(i)}<div class="day">{day(m.date)}</div>{/if}
               <div class="msg" class:mine={m.from_id === me} class:pending={m.pending} class:failed={m.failed}>
-                <div class="bubble">
-                  {#each parts(m.text) as p, j (j)}
-                    <!-- Спойлер раскрывается фокусом, как в комментариях (см. .spoiler в app.css). -->
-                    <!-- svelte-ignore a11y_no_noninteractive_tabindex -->
-                    <span class:spoiler={p.spoiler} tabindex={p.spoiler ? 0 : undefined}>
-                      {#each p.rich as r, k (k)}
-                        <span class:b={r.b} class:i={r.i} class:u={r.u} class:s={r.s}
-                          >{#if r.href}<a href={r.href} onclick={(e) => (e.preventDefault(), openExternal(r.href!))}>{r.text}</a
-                            >{:else}{r.text}{/if}</span
-                        >
-                      {/each}
-                    </span>
-                  {/each}
+                <div class="bubble" class:sticker={one} class:big={emo > 0 && emo <= 3}>
+                  {#if one}
+                    <img class="st" src={stickerUrl(one)} alt={one.emoji} title={code(one)} width="160" height="160" loading="lazy" />
+                  {:else}
+                    {#each parts(m.text) as p, j (j)}
+                      <!-- Спойлер раскрывается фокусом, как в комментариях (см. .spoiler в app.css). -->
+                      <!-- svelte-ignore a11y_no_noninteractive_tabindex -->
+                      <span class:spoiler={p.spoiler} tabindex={p.spoiler ? 0 : undefined}>
+                        {#each p.rich as r, k (k)}
+                          <span class:b={r.b} class:i={r.i} class:u={r.u} class:s={r.s}
+                            >{#if r.href}<a href={r.href} onclick={(e) => (e.preventDefault(), openExternal(r.href!))}>{r.text}</a
+                              >{:else}{#each splitStickers(r.text) as x, q (q)}{#if typeof x === 'string'}{x}{:else}<img
+                                    class="emo"
+                                    src={stickerUrl(x)}
+                                    alt={x.emoji}
+                                    title={code(x)}
+                                  />{/if}{/each}{/if}</span
+                          >
+                        {/each}
+                      </span>
+                    {/each}
+                  {/if}
                   <span class="stamp">
                     {#if m.edited}изм. ·{/if}
                     {time(m.date)}
@@ -322,6 +352,15 @@
           </div>
 
           <form class="compose" onsubmit={(e) => (e.preventDefault(), send())}>
+            {#if picker}<StickerPicker {onPick} onClose={() => (picker = false)} />{/if}
+            <button
+              class="icon sticker-btn"
+              class:open={picker}
+              type="button"
+              title="Стикеры и смайлы"
+              data-sticker-toggle
+              onclick={() => (picker = !picker)}><StickerIcon size={18} /></button
+            >
             <textarea
               bind:this={input}
               bind:value={text}
@@ -567,6 +606,52 @@
   .bubble a {
     color: var(--accent);
   }
+  /* Сообщение из одного стикера — картинка без пузыря, время поверх угла. */
+  .bubble.sticker {
+    position: relative;
+    padding: 0;
+    background: none;
+    line-height: 0;
+  }
+  .st {
+    width: 160px;
+    height: 160px;
+    object-fit: contain;
+  }
+  .sticker .stamp {
+    position: absolute;
+    right: 4px;
+    bottom: 4px;
+    float: none;
+    margin: 0;
+    padding: 2px 6px;
+    border-radius: 8px;
+    background: rgba(0, 0, 0, 0.55);
+    color: #fff;
+    line-height: 1.2;
+  }
+  .emo {
+    /* app.css делает img блочными — смайлу нужно стоять в строке текста. */
+    display: inline-block;
+    width: 1.5em;
+    height: 1.5em;
+    margin: -0.25em 0.05em;
+    object-fit: contain;
+    vertical-align: middle;
+  }
+  /* Только смайлы, до трёх штук, — крупнее, как в мессенджерах. */
+  .bubble.big {
+    font-size: 26px;
+    line-height: 1.2;
+  }
+  .bubble.big .emo {
+    width: 2em;
+    height: 2em;
+    margin: 0;
+  }
+  .bubble.big .stamp {
+    font-size: 11px;
+  }
   .b {
     font-weight: 700;
   }
@@ -598,6 +683,7 @@
     cursor: pointer;
   }
   .compose {
+    position: relative;
     display: flex;
     align-items: flex-end;
     gap: 8px;
@@ -625,6 +711,15 @@
   }
   .compose .btn {
     height: 38px;
+  }
+  .sticker-btn {
+    width: 38px;
+    height: 38px;
+  }
+  /* Не .on — так здесь зовётся точка «в сети» у аватара. */
+  .sticker-btn.open {
+    background: var(--panel-2);
+    color: var(--accent);
   }
 
   /* Узкое окно: одна колонка — список или диалог. */
