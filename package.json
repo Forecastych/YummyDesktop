@@ -34,5 +34,5 @@
     "@tauri-apps/plugin-updater": "^2.14.0"
   },
   "description": "Unofficial ad-free desktop client for YummyAnime",
-  "license": "UNLICENSED"
+  "license": "PolyForm-Noncommercial-1.0.0"
 }
