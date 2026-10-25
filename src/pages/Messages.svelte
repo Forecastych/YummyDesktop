@@ -12,6 +12,7 @@
   import { go, link } from '../lib/router.svelte'
   import { richText } from '../lib/sanitize'
   import { auth } from '../lib/stores/auth.svelte'
+  import { ask } from '../lib/stores/confirm.svelte'
   import { chat, loadDialogs, onChat, plainMessage, readDialog, touchDialog } from '../lib/stores/messages.svelte'
   import { openMenu, type MenuEntry } from '../lib/stores/menu.svelte'
   import { toast } from '../lib/stores/toast.svelte'
@@ -242,7 +243,8 @@
   }
 
   async function remove(m: Msg) {
-    if (!confirm('Удалить сообщение? Оно пропадёт и у собеседника.')) return
+    const ok = await ask({ title: 'Удалить сообщение?', text: 'Оно пропадёт и у собеседника.', ok: 'Удалить', danger: true })
+    if (!ok) return
     try {
       await Api.deleteMessage(m.id)
       items = items.filter((x) => x.id !== m.id)

@@ -3,14 +3,21 @@
   import AnimeCard from '../lib/components/AnimeCard.svelte'
   import { ago } from '../lib/format'
   import { auth } from '../lib/stores/auth.svelte'
+  import { ask } from '../lib/stores/confirm.svelte'
   import { recent, removeFromHistory, syncHistory, watchLine } from '../lib/stores/history.svelte'
 
   syncHistory()
 
   const items = $derived(recent(300))
 
-  function clearAll() {
-    if (!confirm('Очистить всю историю просмотра? Отметки о просмотренных сериях останутся.')) return
+  async function clearAll() {
+    const ok = await ask({
+      title: 'Очистить всю историю просмотра?',
+      text: 'Отметки о просмотренных сериях останутся.',
+      ok: 'Очистить',
+      danger: true,
+    })
+    if (!ok) return
     for (const e of items) removeFromHistory(e.animeId)
   }
 </script>

@@ -5,6 +5,7 @@
   import type { LinkedService } from '../api/types'
   import { errorText } from '../query.svelte'
   import { auth, changePassword, reloadProfile } from '../stores/auth.svelte'
+  import { ask } from '../stores/confirm.svelte'
 
   interface Props {
     /** Вызывается после любой успешной правки — странице профиля пора перечитать данные. */
@@ -68,8 +69,8 @@
     run(kind, () => (kind === 'avatar' ? Api.setAvatar(id, file) : Api.setBanner(id, file)), 'Загружено')
   }
 
-  function remove(kind: 'avatar' | 'banner') {
-    if (!profile || !confirm(`Удалить ${IMAGES[kind].title}?`)) return
+  async function remove(kind: 'avatar' | 'banner') {
+    if (!profile || !(await ask({ title: `Удалить ${IMAGES[kind].title}?`, ok: 'Удалить', danger: true }))) return
     const id = profile.id
     run(kind, () => (kind === 'avatar' ? Api.removeAvatar(id) : Api.removeBanner(id)), 'Удалено')
   }
@@ -107,8 +108,14 @@
     ] satisfies { service: LinkedService; title: string; value?: string }[]
   })
 
-  function unlink(service: LinkedService, title: string) {
-    if (!confirm(`Отвязать ${title} от аккаунта? Привязать заново можно будет только на сайте YummyAnime.`)) return
+  async function unlink(service: LinkedService, title: string) {
+    const ok = await ask({
+      title: `Отвязать ${title} от аккаунта?`,
+      text: 'Привязать заново можно будет только на сайте YummyAnime.',
+      ok: 'Отвязать',
+      danger: true,
+    })
+    if (!ok) return
     run(service, () => Api.unlinkAccount(service), 'Отвязано')
   }
 

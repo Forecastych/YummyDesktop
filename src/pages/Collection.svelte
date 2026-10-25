@@ -12,6 +12,7 @@
   import { go, link } from '../lib/router.svelte'
   import { auth } from '../lib/stores/auth.svelte'
   import { deleteCollection, editCollection, isOwner, removeAnimes, vote } from '../lib/stores/collections.svelte'
+  import { ask } from '../lib/stores/confirm.svelte'
 
   let { id }: { id: number } = $props()
 
@@ -73,7 +74,9 @@
   }
 
   async function destroy() {
-    if (!c || !confirm(`Удалить коллекцию «${c.title}»? Это нельзя отменить.`)) return
+    if (!c) return
+    const ok = await ask({ title: `Удалить коллекцию «${c.title}»?`, text: 'Это нельзя отменить.', ok: 'Удалить', danger: true })
+    if (!ok) return
     try {
       await deleteCollection(id)
       go('/collections?tab=mine', true)

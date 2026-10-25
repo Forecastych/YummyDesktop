@@ -8,6 +8,7 @@
   import { errorText } from '../query.svelte'
   import { commentHtml } from '../sanitize'
   import { auth } from '../stores/auth.svelte'
+  import { ask } from '../stores/confirm.svelte'
 
   let { animeId, total = 0 }: { animeId: number; total?: number } = $props()
 
@@ -141,8 +142,8 @@
     })
   }
 
-  function remove(c: Comment) {
-    if (!confirm('Удалить комментарий?')) return
+  async function remove(c: Comment) {
+    if (!(await ask({ title: 'Удалить комментарий?', ok: 'Удалить', danger: true }))) return
     act(c, async () => {
       await Api.deleteComment(c.id)
       c.deleted_at = Math.floor(Date.now() / 1000)

@@ -9,6 +9,7 @@
   import { go } from '../lib/router.svelte'
   import { internalLink, sanitize } from '../lib/sanitize'
   import { auth } from '../lib/stores/auth.svelte'
+  import { ask } from '../lib/stores/confirm.svelte'
   import {
     clearAllNotifications,
     loadNotifications,
@@ -74,7 +75,8 @@
             </button>
             <button
               class="btn small ghost"
-              onclick={() => confirm('Удалить все уведомления?') && run(clearAllNotifications)}
+              onclick={async () =>
+                (await ask({ title: 'Удалить все уведомления?', ok: 'Удалить', danger: true })) && run(clearAllNotifications)}
             >
               <Trash2 size={14} /> Очистить
             </button>

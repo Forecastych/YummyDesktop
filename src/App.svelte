@@ -1,4 +1,5 @@
 <script lang="ts">
+  import ConfirmDialog from './lib/components/ConfirmDialog.svelte'
   import ContextMenu from './lib/components/ContextMenu.svelte'
   import Footer from './lib/components/Footer.svelte'
   import Header from './lib/components/Header.svelte'
@@ -126,6 +127,7 @@
 </main>
 <Footer />
 <ContextMenu />
+<ConfirmDialog />
 <Toasts />
 
 <style>
