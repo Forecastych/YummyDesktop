@@ -5317,7 +5317,7 @@ dependencies = [
 
 [[package]]
 name = "yummi-desktop"
-version = "0.3.7-b"
+version = "0.3.7-c"
 dependencies = [
  "log",
  "reqwest",

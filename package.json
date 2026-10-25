@@ -1,7 +1,7 @@
 {
   "name": "yummi-desktop",
   "private": true,
-  "version": "0.3.7-b",
+  "version": "0.3.7-c",
   "type": "module",
   "scripts": {
     "dev": "vite",
