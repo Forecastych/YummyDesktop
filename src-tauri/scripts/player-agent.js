@@ -284,6 +284,10 @@ html.yd-bare * { visibility: hidden !important; }
     if (was) document.documentElement.classList.add('yd-bare'), setShadows(true)
     // В центре чужой iframe — нажмёт агент внутри него.
     if (!el || el.tagName === 'IFRAME') return
+    press(el, x, y)
+  }
+
+  function press(el, x, y) {
     const opt = { bubbles: true, cancelable: true, composed: true, clientX: x, clientY: y, button: 0, view: window }
     el.dispatchEvent(new PointerEvent('pointerdown', { ...opt, pointerType: 'mouse', isPrimary: true }))
     el.dispatchEvent(new MouseEvent('mousedown', opt))
@@ -294,6 +298,10 @@ html.yd-bare * { visibility: hidden !important; }
 
   function play() {
     const v = video
+    // VK-плеер (CVH), запущенный мимо своей кнопки «Смотреть», так и считает себя
+    // не начатым: видео идёт, а панели управления — и меню качества в ней — нет.
+    const thumb = vkRoot()?.querySelector('[data-testid=unstarted-thumb]:not(.hidden) .playButton')
+    if (thumb && (!v || v.paused)) return press(thumb, innerWidth / 2, innerHeight / 2)
     if (v && (v.currentSrc || v.src)) {
       v.play().catch(() => kick())
       return
@@ -302,14 +310,27 @@ html.yd-bare * { visibility: hidden !important; }
   }
 
   // ---- качество: родное меню плеера спрятано, список и выбор берём из его DOM ----
-  // Пока умеем Kodik (Flowplayer): пункты .fp-quality-dropdown .items div[data-quality],
+  // Kodik (Flowplayer): пункты .fp-quality-dropdown .items div[data-quality],
   // у текущего класс current, у недоступного — blocked. Клик ловит делегированный
   // jQuery-обработчик плеера, поэтому хватает синтетического click.
+  // VK-плеер (внутри CVH) — ниже, у него меню есть в DOM, только пока открыто.
 
   const QUALITY_ITEMS = '.fp-quality-dropdown .items div[data-quality]'
   let qualitySig = ''
+  let qualityList = []
+
+  function sendQuality(list, cur) {
+    // Фреймы без меню молчат: их пустой список затёр бы настоящий.
+    if (!list.length && !qualitySig) return
+    qualityList = list
+    const sig = JSON.stringify([list, cur])
+    if (sig === qualitySig) return
+    qualitySig = sig
+    up({ ev: 'quality', list, cur })
+  }
 
   function scanQuality() {
+    if (vkRoot()) return vkScanOnce()
     const list = []
     let cur = null
     for (const el of document.querySelectorAll(QUALITY_ITEMS)) {
@@ -319,15 +340,98 @@ html.yd-bare * { visibility: hidden !important; }
       list.push({ id, label, blocked, title: blocked ? el.getAttribute('title') || '' : '' })
       if (el.classList.contains('current')) cur = id
     }
-    // Фреймы без меню молчат: их пустой список затёр бы настоящий.
-    if (!list.length && !qualitySig) return
-    const sig = JSON.stringify([list, cur])
-    if (sig === qualitySig) return
-    qualitySig = sig
-    up({ ev: 'quality', list, cur })
+    sendQuality(list, cur)
+  }
+
+  // VK: Настройки → Качество → «Другое» — там пункты li[data-value] (auto, 1080p, 720p…),
+  // у выбранного data-selected="true". Снаружи (через CVH) качество не переключить: команды
+  // changeQuality VK-фрейм не слушает. Пока фрейм в режиме bare, меню скрыто вместе со
+  // всем интерфейсом плеера, так что проход по нему не видно.
+
+  const vkRoot = () => document.querySelector('.shadow-root-container')?.shadowRoot || null
+  const VK_OTHER = '[data-testid=quality-other-settings-sub-menu]'
+  let vkBusy = false
+  let vkKnown = false
+  let vkTries = 0
+
+  const sleep = (ms) => new Promise((r) => setTimeout(r, ms))
+  async function waitFor(root, sel) {
+    for (let i = 0; i < 20; i++) {
+      const el = root.querySelector(sel)
+      if (el) return el
+      await sleep(50)
+    }
+    return null
+  }
+
+  /** Открыть меню до подменю «Другое»; null — не вышло. Закрывает vkClose. */
+  async function vkOpen(r) {
+    const btn = r.querySelector('[data-testid=settings-btn]')
+    if (!btn) return null
+    if (!r.querySelector('[data-testid=quality-settings]')) btn.click()
+    const q = await waitFor(r, '[data-testid=quality-settings]')
+    q?.click()
+    const other = q && (await waitFor(r, '[data-testid=quality-other-settings]'))
+    other?.click()
+    return other ? waitFor(r, VK_OTHER) : null
+  }
+
+  // Кнопка настроек меню только открывает — закрывает его Escape.
+  function vkClose(r) {
+    const m = r.querySelector('[data-testid=settings-menu]') || r.querySelector('.settings-menu-container')
+    m?.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', code: 'Escape', bubbles: true, composed: true }))
+  }
+
+  async function vkScan() {
+    const r = vkRoot()
+    if (!r || vkBusy) return
+    vkBusy = true
+    try {
+      const sub = await vkOpen(r)
+      if (!sub) return
+      const list = []
+      let cur = null
+      for (const li of sub.querySelectorAll('li[data-value]')) {
+        const id = li.getAttribute('data-value')
+        list.push({ id, label: li.getAttribute('aria-label') || id, blocked: false, title: '' })
+        if (li.querySelector('[data-selected=true]')) cur = id
+      }
+      vkKnown = list.length > 0
+      sendQuality(list, cur)
+    } finally {
+      vkClose(r)
+      vkBusy = false
+    }
+  }
+
+  // Меню появляется, когда видео уже пошло; список читаем один раз (несколько попыток).
+  function vkScanOnce() {
+    const v = video
+    if (vkKnown || vkBusy || revealed || !bare || !v || v.currentTime < 1 || vkTries >= 5) return
+    // Нет кнопки настроек — плеер ещё не начат; попытку на это не тратим.
+    if (!vkRoot()?.querySelector('[data-testid=settings-btn]')) return
+    vkTries++
+    vkScan()
+  }
+
+  async function vkSet(id) {
+    const r = vkRoot()
+    if (!r || vkBusy) return
+    vkBusy = true
+    try {
+      const sub = await vkOpen(r)
+      const li = sub && [...sub.querySelectorAll('li[data-value]')].find((li) => li.getAttribute('data-value') === id)
+      if (!li) return vkClose(r)
+      // После выбора VK сам закрывает меню.
+      li.click()
+      sendQuality(qualityList, id)
+    } finally {
+      vkBusy = false
+    }
   }
 
   function setQuality(id) {
+    if (vkRoot()) return void vkSet(id)
     for (const el of document.querySelectorAll(QUALITY_ITEMS)) {
       if (el.getAttribute('data-quality') !== id) continue
       el.dispatchEvent(new MouseEvent('click', { bubbles: true, cancelable: true, view: window }))

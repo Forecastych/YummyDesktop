@@ -179,6 +179,9 @@
   function onAgent(d: Record<string, unknown>) {
     switch (d.ev) {
       case 'hello':
+        // Пока iframe не ушёл на адрес плеера, в нём пустой about:blank — и агент там тоже
+        // есть. Его «привет» не считаем, иначе плеер так и не получил бы init.
+        if (d.href === 'about:blank') break
         agent = true
         break
       case 'video':

@@ -230,7 +230,9 @@ fn setup_tray(app: &AppHandle<Wry>) -> tauri::Result<()> {
             }
             "quit" => {
                 if let Some(w) = app.get_webview_window("main") {
-                    let _ = mini::leave(&w.as_ref().window());
+                    let w = w.as_ref().window();
+                    let _ = mini::leave(&w);
+                    let _ = fullscreen::set(&w, false);
                 }
                 app.exit(0)
             }
@@ -281,9 +283,11 @@ pub fn run() {
     tauri::Builder::default()
         .plugin(tauri_plugin_single_instance::init(|app, _args, _cwd| show_main(app)))
         // Рамку окна рисуем сами: сохранённое состояние не должно возвращать системную.
+        // Полный экран тоже не восстанавливаем: плагин включал его в обход fullscreen.rs
+        // поверх развёрнутого окна — оно выглядело обычным, но за край не тянулось.
         .plugin(
             tauri_plugin_window_state::Builder::default()
-                .with_state_flags(StateFlags::all() & !StateFlags::DECORATIONS)
+                .with_state_flags(StateFlags::all() & !StateFlags::DECORATIONS & !StateFlags::FULLSCREEN)
                 .build(),
         )
         .plugin(
@@ -321,8 +325,10 @@ pub fn run() {
         })
         .on_window_event(|window, event| {
             if let WindowEvent::CloseRequested { api, .. } = event {
+                // Размер полного экрана не должен запомниться как обычный размер окна.
                 if window.label() == "main" {
                     let _ = mini::leave(window);
+                    let _ = fullscreen::set(window, false);
                 }
                 if window.label() == "main" && CLOSE_TO_TRAY.load(Ordering::Relaxed) {
                     api.prevent_close();
