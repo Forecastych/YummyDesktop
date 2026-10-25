@@ -63,7 +63,7 @@
 <header class:framed={isTauri} data-tauri-drag-region="deep">
   <div class="inner container">
     <a class="logo" href="#/" aria-label="На главную">
-      <span class="mark">Y</span><span class="name">YummyAnime <b>Desktop</b></span>
+      <img class="mark" src="/favicon.png" alt="" draggable="false" /><span class="name">YummyAnime <b>Desktop</b></span>
     </a>
 
     <nav class="full">
@@ -168,15 +168,8 @@
     flex: none;
   }
   .mark {
-    display: grid;
-    place-items: center;
     width: 28px;
     height: 28px;
-    border-radius: 6px;
-    background: var(--accent);
-    color: #fff;
-    font-weight: 800;
-    font-size: 16px;
   }
   .name {
     font-size: 15px;

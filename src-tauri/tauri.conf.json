@@ -1,7 +1,7 @@
 {
   "$schema": "../node_modules/@tauri-apps/cli/config.schema.json",
   "productName": "YummyAnime Desktop",
-  "version": "0.3.5",
+  "version": "0.3.5-a",
   "identifier": "io.github.yummidesktop",
   "build": {
     "frontendDist": "../dist",
