@@ -25,10 +25,12 @@ export async function openExternal(url: string) {
   }
 }
 
+/** Через Rust, а не setFullscreen из API окна: развёрнутое окно надо сначала свернуть
+ *  в обычное, иначе снизу остаётся панель задач (см. src-tauri/src/fullscreen.rs). */
 export async function setFullscreen(on: boolean) {
   if (!isTauri) return
-  const { getCurrentWindow } = await import('@tauri-apps/api/window')
-  await getCurrentWindow().setFullscreen(on)
+  const { invoke } = await import('@tauri-apps/api/core')
+  await invoke('set_fullscreen', { on })
 }
 
 /** Масштаб всего интерфейса. В Tauri — zoom самого webview (вместе с iframe плеера), в браузере — CSS zoom. */

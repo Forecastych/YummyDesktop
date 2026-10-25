@@ -301,6 +301,41 @@ html.yd-bare * { visibility: hidden !important; }
     kick()
   }
 
+  // ---- качество: родное меню плеера спрятано, список и выбор берём из его DOM ----
+  // Пока умеем Kodik (Flowplayer): пункты .fp-quality-dropdown .items div[data-quality],
+  // у текущего класс current, у недоступного — blocked. Клик ловит делегированный
+  // jQuery-обработчик плеера, поэтому хватает синтетического click.
+
+  const QUALITY_ITEMS = '.fp-quality-dropdown .items div[data-quality]'
+  let qualitySig = ''
+
+  function scanQuality() {
+    const list = []
+    let cur = null
+    for (const el of document.querySelectorAll(QUALITY_ITEMS)) {
+      const id = el.getAttribute('data-quality')
+      const label = el.textContent.trim() || (/^\d+$/.test(id) ? id + 'p' : id)
+      const blocked = el.classList.contains('blocked')
+      list.push({ id, label, blocked, title: blocked ? el.getAttribute('title') || '' : '' })
+      if (el.classList.contains('current')) cur = id
+    }
+    // Фреймы без меню молчат: их пустой список затёр бы настоящий.
+    if (!list.length && !qualitySig) return
+    const sig = JSON.stringify([list, cur])
+    if (sig === qualitySig) return
+    qualitySig = sig
+    up({ ev: 'quality', list, cur })
+  }
+
+  function setQuality(id) {
+    for (const el of document.querySelectorAll(QUALITY_ITEMS)) {
+      if (el.getAttribute('data-quality') !== id) continue
+      el.dispatchEvent(new MouseEvent('click', { bubbles: true, cancelable: true, view: window }))
+      setTimeout(scanQuality, 300)
+      return
+    }
+  }
+
   function run(d) {
     const v = video
     switch (d.cmd) {
@@ -321,6 +356,9 @@ html.yd-bare * { visibility: hidden !important; }
         break
       case 'rate':
         if (v && Number.isFinite(d.v)) v.playbackRate = d.v
+        break
+      case 'quality':
+        if (typeof d.v === 'string') setQuality(d.v)
         break
       case 'meta':
         meta = d
@@ -355,6 +393,7 @@ html.yd-bare * { visibility: hidden !important; }
     setInterval(() => {
       toKids({ cmd: 'init' })
       scan()
+      scanQuality()
       if (shown) lift(shown)
     }, 700)
     scan()

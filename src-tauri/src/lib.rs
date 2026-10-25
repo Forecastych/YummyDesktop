@@ -13,6 +13,7 @@ use tauri_plugin_opener::OpenerExt;
 use tauri_plugin_window_state::StateFlags;
 
 mod discord;
+mod fullscreen;
 mod imgcache;
 mod mini;
 mod shiki;
@@ -340,6 +341,7 @@ pub fn run() {
             set_close_to_tray,
             discord::discord_set,
             mini::mini_player,
+            fullscreen::set_fullscreen,
             shiki::shiki_rates,
             imgcache::img_cache_stats,
             imgcache::img_cache_set_limit,

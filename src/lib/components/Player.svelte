@@ -10,7 +10,7 @@
   import { presence } from '../stores/discord.svelte'
   import { progressOf, setProgress, touch } from '../stores/history.svelte'
   import { settings } from '../stores/settings.svelte'
-  import PlayerControls, { type VideoState } from './PlayerControls.svelte'
+  import PlayerControls, { type Quality, type VideoState } from './PlayerControls.svelte'
 
   interface Props {
     anime: AnimeShort
@@ -86,6 +86,8 @@
   /** Нажали «смотреть» (или серия запустилась сама) — заставку с постером больше не показываем. */
   let started = $state(false)
   let fs = $state(false)
+  let qualities = $state<Quality[]>([])
+  let quality = $state<string | null>(null)
   /** Запустить серию, как только плеер будет готов: после «следующей серии» или смены серии на ходу. */
   let wantPlay = false
   let playTries = 0
@@ -121,6 +123,8 @@
       native = false
       hasVideo = false
       st = { ...IDLE }
+      qualities = []
+      quality = null
       started = wantPlay
       playTries = 0
       playSince = Date.now()
@@ -205,6 +209,10 @@
         break
       case 'ended':
         ended()
+        break
+      case 'quality':
+        qualities = Array.isArray(d.list) ? (d.list as Quality[]) : []
+        quality = typeof d.cur === 'string' ? d.cur : null
         break
       case 'media':
         // Медиаклавиши и плитка Windows: play/pause/перемотку агент делает сам.
@@ -542,6 +550,9 @@
       onVolume={setVolume}
       onMute={setMuted}
       onRate={(v) => cmd('rate', { v })}
+      {qualities}
+      {quality}
+      onQuality={(v) => cmd('quality', { v })}
       onFullscreen={toggleFullscreen}
       onNext={next}
       onMini={() => setMini(!mini)}

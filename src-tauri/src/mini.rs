@@ -30,9 +30,8 @@ fn enter<R: Runtime>(w: &Window<R>) -> tauri::Result<()> {
     if saved.is_some() {
         return Ok(());
     }
-    if w.is_fullscreen()? {
-        w.set_fullscreen(false)?;
-    }
+    // Выход из полноэкранного режима возвращает окну «развёрнутость» — её запомним ниже.
+    crate::fullscreen::set(w, false)?;
     let maximized = w.is_maximized()?;
     if maximized {
         w.unmaximize()?;

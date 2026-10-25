@@ -10,6 +10,14 @@
     rate: number
     waiting: boolean
   }
+
+  /** Пункт родного меню качества плеера; id — как его называет сам плеер. */
+  export interface Quality {
+    id: string
+    label: string
+    blocked: boolean
+    title: string
+  }
 </script>
 
 <script lang="ts">
@@ -31,11 +39,33 @@
     onVolume: (v: number) => void
     onMute: (m: boolean) => void
     onRate: (r: number) => void
+    /** Пусто — плеер не дал выбрать качество. */
+    qualities: Quality[]
+    quality: string | null
+    onQuality: (id: string) => void
     onFullscreen: () => void
     onNext: () => void
     onMini: () => void
   }
-  let { st, op, ed, hasNext, fs, mini, onToggle, onSeek, onVolume, onMute, onRate, onFullscreen, onNext, onMini }: Props = $props()
+  let {
+    st,
+    op,
+    ed,
+    hasNext,
+    fs,
+    mini,
+    onToggle,
+    onSeek,
+    onVolume,
+    onMute,
+    onRate,
+    qualities,
+    quality,
+    onQuality,
+    onFullscreen,
+    onNext,
+    onMini,
+  }: Props = $props()
 
   const RATES = [0.5, 0.75, 1, 1.25, 1.5, 2]
   const HIDE_AFTER = 2500
@@ -342,6 +372,20 @@
             <button class="rate" class:on={st.rate === r} onclick={() => onRate(r)}>{r === 1 ? 'Обычная' : `${r}×`}</button>
           {/each}
         </div>
+        {#if qualities.length}
+          <div class="mtitle q">Качество</div>
+          <div class="rates">
+            {#each qualities as q (q.id)}
+              <button
+                class="rate"
+                class:on={quality === q.id}
+                disabled={q.blocked}
+                title={q.title || undefined}
+                onclick={() => onQuality(q.id)}>{q.label}</button
+              >
+            {/each}
+          </div>
+        {/if}
         <div class="msep"></div>
         <label class="opt">
           <span>Пропускать опенинг</span>
@@ -689,6 +733,13 @@
   .rate.on {
     background: var(--accent);
     font-weight: 600;
+  }
+  .rate:disabled {
+    opacity: 0.4;
+    cursor: not-allowed;
+  }
+  .mtitle.q {
+    padding-top: 12px;
   }
   .msep {
     height: 1px;
