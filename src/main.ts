@@ -8,6 +8,7 @@ import { startFollowChecker } from './lib/stores/follows.svelte'
 import './lib/stores/history.svelte'
 import { startMessages } from './lib/stores/messages.svelte'
 import { startNotifications } from './lib/stores/notifications.svelte'
+import { startOnline } from './lib/stores/online.svelte'
 import { startSmartBuilder } from './lib/stores/smart.svelte'
 import { startUpdateChecker } from './lib/stores/updates.svelte'
 
@@ -21,6 +22,7 @@ window.addEventListener('unhandledrejection', (e) => {
 initAuth()
 startFollowChecker()
 startNotifications()
+startOnline()
 startMessages()
 startSmartBuilder()
 startUpdateChecker()

@@ -203,6 +203,9 @@ fn show_main<R: Runtime>(app: &AppHandle<R>) {
         let _ = w.show();
         let _ = w.unminimize();
         let _ = w.set_focus();
+        // Пара к "tray-hidden": WebView2 в спрятанном окне не меняет visibilityState,
+        // так что фронт узнаёт о трее только от нас.
+        let _ = w.emit("tray-shown", ());
     }
 }
 

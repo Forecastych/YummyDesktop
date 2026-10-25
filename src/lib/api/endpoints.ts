@@ -228,6 +228,9 @@ export const Api = {
 
   logout: () => api<unknown>('/profile/logout', { method: 'POST' }),
 
+  /** Отметка «в сети». hash сайт берёт из Яндекс.Метрики, без неё шлёт пустую строку — как и мы. */
+  markOnline: () => api<unknown>('/profile/online', { method: 'POST', body: { hash: '' } }),
+
   profile: () => api<Profile>('/profile', { ttl: 0 }),
 
   // ---- редактирование профиля ----
