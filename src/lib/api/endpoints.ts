@@ -362,4 +362,20 @@ export const Api = {
     api<Message>(`/dialogs/${userId}/messages`, { method: 'POST', body: { message, answer_msg_id: answerTo ?? null } }),
 
   readDialog: (userId: number) => api<unknown>(`/dialogs/${userId}/messages/read`, { method: 'POST' }),
+
+  /** Только своё сообщение; причину сайт спрашивает у модераторов, нам она не нужна. */
+  editMessage: (id: number, text: string) =>
+    api<Message>(`/dialogs/messages/${id}`, { method: 'PUT', body: { new_text: text, reason_edition: '' } }),
+
+  deleteMessage: (id: number) => api<Message>(`/dialogs/messages/${id}`, { method: 'DELETE', body: { reason: '' } }),
+
+  // ---- восстановление пароля ----
+
+  /** Второй шаг сброса: id и token из ссылки в письме. Первый шаг (письмо) — только на сайте, там hCaptcha. */
+  resetPasswordVerify: (id: number, token: string, password: string) =>
+    api<{ success: boolean; token?: string }>('/profile/reset-password-verify', {
+      method: 'POST',
+      body: { id, token, new_password: password },
+      keepAuth: true,
+    }),
 }

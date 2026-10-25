@@ -8,6 +8,7 @@ use tauri::tray::{MouseButton, MouseButtonState, TrayIconBuilder, TrayIconEvent}
 use tauri::webview::PageLoadEvent;
 use tauri::plugin::{Builder as PluginBuilder, TauriPlugin};
 use tauri::{AppHandle, Emitter, Manager, Runtime, Url, WebviewUrl, WebviewWindowBuilder, WindowEvent, Wry};
+use tauri_plugin_log::{RotationStrategy, Target, TargetKind, TimezoneStrategy};
 use tauri_plugin_opener::OpenerExt;
 use tauri_plugin_window_state::StateFlags;
 
@@ -20,6 +21,8 @@ const SITE_LOGIN_LABEL: &str = "site-login";
 /// Отдельной страницы /login у сайта больше нет (404): форма входа живёт
 /// в шапке любой страницы, после входа сайт перезагружает страницу.
 const SITE_LOGIN_URL: &str = "https://old.yummyani.me/";
+/// Сброс пароля: письмо со ссылкой сайт шлёт только после hCaptcha, а она живёт на его домене.
+const SITE_RESET_PATH: &str = "/login/reset-password";
 /// Кука, в которую сайт кладёт токен; её проверяем первой.
 const TOKEN_COOKIE: &str = "yummy_token";
 /// Домены, где сайт может оставить авторизационную куку
@@ -48,21 +51,34 @@ fn looks_like_jwt(v: &str) -> bool {
 
 /// Запасной вход: открываем страницу логина самого сайта (там капча работает
 /// на своём домене), а после ухода со страницы логина забираем токен из кук.
+/// `reset` — сразу на страницу сброса пароля; токен из кук ловим так же, если человек
+/// потом войдёт в том же окне.
 #[tauri::command]
-async fn site_login_start(app: AppHandle) -> Result<(), String> {
+async fn site_login_start(app: AppHandle, reset: Option<bool>) -> Result<(), String> {
+    let reset = reset.unwrap_or(false);
+    let mut url: Url = SITE_LOGIN_URL.parse().map_err(|e| format!("{e}"))?;
+    if reset {
+        url.set_path(SITE_RESET_PATH);
+    }
     if let Some(w) = app.get_webview_window(SITE_LOGIN_LABEL) {
+        if reset {
+            let _ = w.navigate(url);
+        }
         let _ = w.set_focus();
         return Ok(());
     }
-    let url: Url = SITE_LOGIN_URL.parse().map_err(|e| format!("{e}"))?;
+    let title = if reset { "Восстановление пароля YummyAnime" } else { "Вход через сайт YummyAnime" };
     WebviewWindowBuilder::new(&app, SITE_LOGIN_LABEL, WebviewUrl::External(url))
-        .title("Вход через сайт YummyAnime")
+        .title(title)
         .inner_size(520.0, 760.0)
         .on_page_load(|webview, payload| {
             if payload.event() != PageLoadEvent::Finished {
                 return;
             }
-            let _ = webview.eval(OPEN_LOGIN_FORM_JS);
+            // На странице сброса раскрытая форма входа закрыла бы форму с почтой.
+            if payload.url().path() != SITE_RESET_PATH {
+                let _ = webview.eval(OPEN_LOGIN_FORM_JS);
+            }
             // На Windows чтение кук из обработчика событий webview блокируется —
             // уходим в отдельную задачу.
             let webview = webview.clone();
@@ -238,6 +254,24 @@ fn set_close_to_tray(on: bool) {
     CLOSE_TO_TRAY.store(on, Ordering::Relaxed);
 }
 
+/// Строка от фронта: ошибки JS и неудачные запросы к API. Отдельная цель «front»,
+/// чтобы в файле было видно, с какой стороны пришло.
+#[tauri::command]
+fn log_line(level: String, message: String) {
+    match level.as_str() {
+        "error" => log::error!(target: "front", "{message}"),
+        "warn" => log::warn!(target: "front", "{message}"),
+        _ => log::info!(target: "front", "{message}"),
+    }
+}
+
+#[tauri::command]
+fn open_log_dir(app: AppHandle) -> Result<(), String> {
+    let dir = app.path().app_log_dir().map_err(|e| format!("{e}"))?;
+    std::fs::create_dir_all(&dir).map_err(|e| format!("{e}"))?;
+    app.opener().open_path(dir.to_string_lossy(), None::<&str>).map_err(|e| format!("{e}"))
+}
+
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
     tauri::Builder::default()
@@ -246,6 +280,24 @@ pub fn run() {
         .plugin(
             tauri_plugin_window_state::Builder::default()
                 .with_state_flags(StateFlags::all() & !StateFlags::DECORATIONS)
+                .build(),
+        )
+        .plugin(
+            tauri_plugin_log::Builder::new()
+                .targets([
+                    Target::new(TargetKind::LogDir { file_name: Some("yummianime".into()) }),
+                    Target::new(TargetKind::Stdout),
+                ])
+                .level(log::LevelFilter::Info)
+                // Болтливые крейты (сеть, webview) — только предупреждения.
+                .level_for("reqwest", log::LevelFilter::Warn)
+                .level_for("hyper", log::LevelFilter::Warn)
+                .level_for("tao", log::LevelFilter::Warn)
+                .level_for("wry", log::LevelFilter::Warn)
+                .max_file_size(1_000_000)
+                // Рядом с текущим остаётся один прошлый файл (с датой в имени): лог до сбоя не теряется.
+                .rotation_strategy(RotationStrategy::KeepSome(2))
+                .timezone_strategy(TimezoneStrategy::UseLocal)
                 .build(),
         )
         .plugin(tauri_plugin_notification::init())
@@ -257,6 +309,9 @@ pub fn run() {
         .register_uri_scheme_protocol(CVH_SCHEME, |_ctx, req| cvh_protocol(req))
         .register_asynchronous_uri_scheme_protocol(imgcache::SCHEME, imgcache::protocol)
         .setup(|app| {
+            log::info!("YummyAnime Desktop {} запущен", app.package_info().version);
+            // В релизе panic = abort: без этого хука причина падения не оставила бы следа.
+            std::panic::set_hook(Box::new(|info| log::error!("panic: {info}")));
             imgcache::init(app.handle())?;
             Ok(setup_tray(app.handle())?)
         })
@@ -276,6 +331,8 @@ pub fn run() {
         .invoke_handler(tauri::generate_handler![
             site_login_start,
             site_login_close,
+            log_line,
+            open_log_dir,
             tray_set_notify,
             set_close_to_tray,
             discord::discord_set,

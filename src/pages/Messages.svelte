@@ -1,6 +1,6 @@
 <script lang="ts">
   import { untrack } from 'svelte'
-  import { ArrowLeft, RotateCw, SendHorizontal, Sticker as StickerIcon } from '@lucide/svelte'
+  import { ArrowLeft, Copy, Pencil, RotateCw, SendHorizontal, Sticker as StickerIcon, Trash2, X } from '@lucide/svelte'
   import { img } from '../lib/api/client'
   import { Api } from '../lib/api/endpoints'
   import type { Message } from '../lib/api/types'
@@ -13,6 +13,8 @@
   import { richText } from '../lib/sanitize'
   import { auth } from '../lib/stores/auth.svelte'
   import { chat, loadDialogs, onChat, plainMessage, readDialog, touchDialog } from '../lib/stores/messages.svelte'
+  import { openMenu, type MenuEntry } from '../lib/stores/menu.svelte'
+  import { toast } from '../lib/stores/toast.svelte'
   import { code, emojiOnly, soleSticker, splitStickers, stickerUrl, type Sticker } from '../lib/stickers'
 
   /** Собеседник; 0 — только список диалогов. */
@@ -66,6 +68,7 @@
     error = null
     stranger = null
     text = ''
+    editing = null
     if (!id || !me) return
     if (!chat.dialogs.some((d) => d.user_id === id)) {
       Api.user(id)
@@ -149,6 +152,7 @@
   let tmpId = 0
   /** raw — готовый текст мимо поля ввода (стикер); набранное в поле при этом остаётся. */
   async function send(retry?: Msg, raw?: string) {
+    if (editing && !retry && raw == null) return saveEdit(editing)
     const body = (retry?.text ?? raw ?? text).trim()
     if (!body || !peer) return
     let m: Msg
@@ -190,6 +194,78 @@
     }
   }
 
+  // ---- правка и удаление своих сообщений ----
+
+  /** Сообщение, которое правим в поле ввода; Enter сохраняет, Esc отменяет. */
+  let editing = $state<Msg | null>(null)
+  let saving = $state(false)
+
+  const editable = (m: Msg) => m.from_id === me && m.id > 0 && !m.pending && !m.deleted
+
+  /** В строке диалога слева — текст последнего сообщения: после правки или удаления он другой. */
+  function syncDialog() {
+    const d = chat.dialogs.find((x) => x.user_id === peer)
+    const last = items.at(-1)
+    if (d && last) d.last_message = last.text
+  }
+
+  function startEdit(m: Msg) {
+    editing = m
+    text = m.text
+    requestAnimationFrame(() => {
+      input?.focus()
+      input?.setSelectionRange(text.length, text.length)
+    })
+  }
+
+  function cancelEdit() {
+    editing = null
+    text = ''
+  }
+
+  async function saveEdit(m: Msg) {
+    const body = text.trim()
+    if (saving) return
+    if (!body || body === m.text) return cancelEdit()
+    saving = true
+    try {
+      const r = await Api.editMessage(m.id, body)
+      Object.assign(m, { text: r?.text ?? body, edited: true })
+      if (editing === m) cancelEdit()
+      syncDialog()
+    } catch (e) {
+      // Текст остаётся в поле — можно поправить и сохранить ещё раз.
+      toast(`Не удалось изменить: ${errorText(e)}`, 'error')
+    } finally {
+      saving = false
+    }
+  }
+
+  async function remove(m: Msg) {
+    if (!confirm('Удалить сообщение? Оно пропадёт и у собеседника.')) return
+    try {
+      await Api.deleteMessage(m.id)
+      items = items.filter((x) => x.id !== m.id)
+      if (editing?.id === m.id) cancelEdit()
+      syncDialog()
+    } catch (e) {
+      toast(`Не удалось удалить: ${errorText(e)}`, 'error')
+    }
+  }
+
+  function msgMenu(e: MouseEvent, m: Msg) {
+    if (m.pending || m.failed) return
+    const items: MenuEntry[] = [
+      { label: 'Копировать текст', icon: Copy, action: () => navigator.clipboard.writeText(m.text).then(() => toast('Скопировано')) },
+    ]
+    if (editable(m)) {
+      // Сообщение из одного стикера править нечего — только удалить.
+      if (!soleSticker(m.text)) items.push({ label: 'Изменить', icon: Pencil, action: () => startEdit(m) })
+      items.push('sep', { label: 'Удалить', icon: Trash2, danger: true, action: () => remove(m) })
+    }
+    openMenu(e, items)
+  }
+
   let picker = $state(false)
 
   /** Стикер уходит сразу отдельным сообщением, смайл встаёт в текст на место курсора. */
@@ -210,6 +286,17 @@
     if (e.key === 'Enter' && !e.shiftKey && !e.isComposing) {
       e.preventDefault()
       send()
+    } else if (e.key === 'Escape' && editing) {
+      e.preventDefault()
+      e.stopPropagation()
+      cancelEdit()
+    } else if (e.key === 'ArrowUp' && !text && !editing) {
+      // Как в мессенджерах: стрелка вверх в пустом поле — править своё последнее.
+      const last = items.findLast((m) => editable(m) && !soleSticker(m.text))
+      if (last) {
+        e.preventDefault()
+        startEdit(last)
+      }
     }
   }
 
@@ -315,8 +402,8 @@
               {@const one = soleSticker(m.text)}
               {@const emo = emojiOnly(m.text)}
               {#if newDay(i)}<div class="day">{day(m.date)}</div>{/if}
-              <div class="msg" class:mine={m.from_id === me} class:pending={m.pending} class:failed={m.failed}>
-                <div class="bubble" class:sticker={one} class:big={emo > 0 && emo <= 3}>
+              <div class="msg" class:mine={m.from_id === me} class:pending={m.pending} class:failed={m.failed} class:editing={editing === m}>
+                <div class="bubble" class:sticker={one} class:big={emo > 0 && emo <= 3} role="none" oncontextmenu={(e) => msgMenu(e, m)}>
                   {#if one}
                     <img class="st" src={stickerUrl(one)} alt={one.emoji} title={code(one)} width="160" height="160" loading="lazy" />
                   {:else}
@@ -351,6 +438,13 @@
             {/each}
           </div>
 
+          {#if editing}
+            <div class="edit-bar">
+              <Pencil size={14} />
+              <span><b>Редактирование</b> <span class="muted">{plainMessage(editing.text)}</span></span>
+              <button class="icon" type="button" title="Отменить (Esc)" onclick={cancelEdit}><X size={15} /></button>
+            </div>
+          {/if}
           <form class="compose" onsubmit={(e) => (e.preventDefault(), send())}>
             {#if picker}<StickerPicker {onPick} onClose={() => (picker = false)} />{/if}
             <button
@@ -369,7 +463,9 @@
               placeholder="Сообщение… (Enter — отправить, Shift+Enter — новая строка)"
               onkeydown={onKey}
             ></textarea>
-            <button class="btn primary" type="submit" title="Отправить" disabled={!text.trim()}><SendHorizontal size={16} /></button>
+            <button class="btn primary" type="submit" title={editing ? 'Сохранить' : 'Отправить'} disabled={!text.trim() || saving}
+              >{#if editing}<Pencil size={16} />{:else}<SendHorizontal size={16} />{/if}</button
+            >
           </form>
         {/if}
       </div>
@@ -673,6 +769,29 @@
   }
   .tick.read {
     color: var(--green);
+  }
+  .editing .bubble {
+    box-shadow: inset 0 0 0 1px var(--line-2);
+  }
+  .edit-bar {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 6px 14px;
+    border-top: 1px solid var(--line);
+    color: var(--accent);
+    font-size: 13px;
+  }
+  .edit-bar > span {
+    flex: 1;
+    min-width: 0;
+    overflow: hidden;
+    color: var(--text);
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+  .edit-bar + .compose {
+    border-top: 0;
   }
   .retry {
     margin-top: 2px;

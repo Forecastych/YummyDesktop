@@ -1,6 +1,6 @@
 [package]
 name = "yummi-desktop"
-version = "0.3.5-a"
+version = "0.3.6"
 description = "Unofficial desktop client for YummyAnime"
 authors = ["YummyDesktop contributors"]
 license = "UNLICENSED"
@@ -24,6 +24,9 @@ tauri-plugin-opener = "2"
 tauri-plugin-window-state = "2"
 tauri-plugin-single-instance = "2"
 tauri-plugin-updater = "2"
+# Лог в файл (%LOCALAPPDATA%\io.github.yummidesktop\logs) с ротацией по размеру.
+tauri-plugin-log = "2"
+log = "0.4"
 # Кэш картинок (imgcache.rs). TLS — тот же rustls+ring, что уже тянет updater,
 # чтобы не собирать второй крипто-бэкенд.
 reqwest = { version = "0.13", default-features = false, features = ["rustls-no-provider", "http2"] }

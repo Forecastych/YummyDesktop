@@ -65,11 +65,12 @@ export function cvhPlayerUrl(search: string): string | null {
 }
 
 /** Открывает окно входа на самом сайте и ждёт токены из его кук. */
-export async function startSiteLogin(onTokens: (candidates: string[]) => void): Promise<() => void> {
+/** reset — открыть сразу страницу сброса пароля (там же можно и войти). */
+export async function startSiteLogin(onTokens: (candidates: string[]) => void, reset = false): Promise<() => void> {
   if (!isTauri) throw new Error('Доступно только в десктопной сборке')
   const [{ invoke }, { listen }] = await Promise.all([import('@tauri-apps/api/core'), import('@tauri-apps/api/event')])
   const un = await listen<{ candidates: string[] }>('site-login-token', (e) => onTokens(e.payload.candidates))
-  await invoke('site_login_start')
+  await invoke('site_login_start', { reset })
   return un
 }
 
@@ -78,6 +79,13 @@ export async function closeSiteLogin() {
   const { invoke } = await import('@tauri-apps/api/core')
   await invoke('site_login_close')
 }
+
+/** Строка в лог-файл приложения; в браузере (npm run dev) — никуда, там есть консоль. */
+export function logLine(level: 'info' | 'warn' | 'error', message: string) {
+  invokeSafe('log_line', { level, message: message.slice(0, 2000) })
+}
+
+export const openLogDir = () => invokeSafe('open_log_dir')
 
 async function invokeSafe(cmd: string, args?: Record<string, unknown>) {
   if (!isTauri) return

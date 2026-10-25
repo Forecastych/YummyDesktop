@@ -1,7 +1,7 @@
 <script lang="ts">
-  import { RefreshCw } from '@lucide/svelte'
+  import { FolderOpen, RefreshCw } from '@lucide/svelte'
   import { clearCache } from '../lib/api/client'
-  import { imgCacheClear, imgCacheStats, isTauri, openExternal, type ImgCacheStats } from '../lib/native'
+  import { imgCacheClear, imgCacheStats, isTauri, openExternal, openLogDir, type ImgCacheStats } from '../lib/native'
   import { GLASS_CLARITY, IMAGE_CACHE_SIZES, settings, UI_SCALES } from '../lib/stores/settings.svelte'
   import { checkUpdates, installUpdate, updates } from '../lib/stores/updates.svelte'
   import { auth } from '../lib/stores/auth.svelte'
@@ -287,6 +287,10 @@
           {:else if updates.checked}
             <span class="muted">Установлена последняя версия</span>
           {/if}
+        </p>
+        <p class="update">
+          <button class="btn small" onclick={openLogDir}><FolderOpen size={14} /> Открыть папку логов</button>
+          <span class="muted">Если что-то сломалось — приложите файл yummianime.log к сообщению об ошибке.</span>
         </p>
       {/if}
       <p class="muted">

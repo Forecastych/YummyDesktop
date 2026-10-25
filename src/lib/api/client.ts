@@ -1,4 +1,4 @@
-import { isTauri } from '../native'
+import { isTauri, logLine } from '../native'
 import { settings } from '../stores/settings.svelte'
 import { load, save } from '../storage'
 
@@ -117,13 +117,20 @@ async function send<T>(path: string, opts: RequestOptions): Promise<T> {
   const h = headers(hasBody)
   // Картинки API принимает телом запроса, с тем же Content-Type, что ставит сайт.
   if (opts.raw) h['Content-Type'] = 'data/raw'
-  const res = await fetch(buildUrl(path, opts.query), {
-    method,
-    headers: h,
-    body: opts.raw ?? (hasBody ? JSON.stringify(opts.body) : undefined),
-    signal: opts.signal,
-    keepalive: opts.keepalive,
-  })
+  let res: Response
+  try {
+    res = await fetch(buildUrl(path, opts.query), {
+      method,
+      headers: h,
+      body: opts.raw ?? (hasBody ? JSON.stringify(opts.body) : undefined),
+      signal: opts.signal,
+      keepalive: opts.keepalive,
+    })
+  } catch (e) {
+    // В лог — только метод и путь: query и тело могут нести личное (почту, текст сообщения).
+    if (!(e instanceof DOMException && e.name === 'AbortError')) logLine('warn', `${method} ${path}: ${e}`)
+    throw e
+  }
   let data: any = null
   const text = await res.text()
   if (text) {
@@ -136,6 +143,7 @@ async function send<T>(path: string, opts: RequestOptions): Promise<T> {
   if (!res.ok || (data && data.error)) {
     if (res.status === 401 && authToken && !opts.keepAuth) onUnauthorized?.()
     const msg = data?.error || res.statusText || 'Ошибка сети'
+    logLine('warn', `${method} ${path} → ${res.status} ${msg}`)
     throw new ApiError(res.status, String(msg), data?.error_code)
   }
   return (data && 'response' in data ? data.response : data) as T
