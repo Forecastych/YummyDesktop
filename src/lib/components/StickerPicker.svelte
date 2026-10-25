@@ -9,8 +9,10 @@
   const RECENT = 'stickers:recent'
 
   const known = new Map(PACKS.flatMap((p) => p.items.map((s) => [code(s), s] as const)))
-  const saved = load<string[]>(RECENT, []).flatMap((c) => known.get(c) ?? [])
-  let recent = $state(saved)
+  // Set — на случай дублей, уже сохранённых старой версией: с ними {#each} падал и окно не открывалось.
+  const saved = [...new Set(load<string[]>(RECENT, []))].flatMap((c) => known.get(c) ?? [])
+  // raw: глубокий $state завернул бы стикеры в прокси, и сравнение со стикером из набора не сработало бы.
+  let recent = $state.raw(saved)
   let tab = $state(saved.length ? 'recent' : PACKS[0]?.id)
   let el = $state<HTMLDivElement>()
 
@@ -18,7 +20,7 @@
   const emojiTab = $derived(tab !== 'recent' && PACKS.find((p) => p.id === tab)?.kind === 'emoji')
 
   function pick(s: Sticker) {
-    recent = [s, ...recent.filter((x) => x !== s)].slice(0, RECENT_MAX)
+    recent = [s, ...recent.filter((x) => code(x) !== code(s))].slice(0, RECENT_MAX)
     save(RECENT, recent.map(code))
     onPick(s)
   }
