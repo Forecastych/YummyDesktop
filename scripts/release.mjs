@@ -25,7 +25,10 @@ if (!process.env.TAURI_SIGNING_PRIVATE_KEY) {
   process.env.TAURI_SIGNING_PRIVATE_KEY_PASSWORD ??= ''
 }
 
-const build = spawnSync('npx', ['tauri', 'build'], { stdio: 'inherit', shell: true })
+// CLI Tauri — тем же node, без npx: npx на Windows это .cmd, а его запуск требует
+// shell: true, где аргументы склеиваются в строку без экранирования (DEP0190).
+const TAURI_CLI = 'node_modules/@tauri-apps/cli/tauri.js'
+const build = spawnSync(process.execPath, [TAURI_CLI, 'build'], { stdio: 'inherit' })
 if (build.status !== 0) process.exit(build.status ?? 1)
 
 const setup = readdirSync(NSIS).find((f) => f.endsWith(`_${version}_x64-setup.exe`))
