@@ -1,0 +1,27 @@
+# Проверка фронтенда на каждый пуш и PR: типы и юнит-тесты.
+# Rust-часть здесь не собирается — ей нужны системные пакеты WebKit, а минуты
+# приватного репозитория не бесконечные.
+name: test
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+concurrency:
+  group: test-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: npm
+      - run: npm ci
+      - run: npm run check
+      - run: npm test

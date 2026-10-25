@@ -71,7 +71,8 @@ npm run release  # подписанный установщик и latest.json в
 ```
 
 Только фронтенд в браузере: `npm run dev`, затем откройте http://localhost:1430.
-Проверка типов: `npm run check`.
+Проверка типов: `npm run check`, юнит-тесты: `npm test` (vitest + jsdom, файлы `src/**/*.test.ts`).
+Оба шага гоняет GitHub Actions на каждый пуш в `main` и PR (`.github/workflows/test.yml`).
 
 ### Выпуск версии
 

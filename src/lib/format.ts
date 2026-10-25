@@ -90,7 +90,8 @@ export function plural(n: number, one: string, few: string, many: string) {
 }
 
 export function compact(n: number) {
-  if (n >= 1e6) return (n / 1e6).toFixed(1).replace('.0', '') + 'M'
+  // 999 950 после округления до десятых тысяч — уже «1000K», значит пора в миллионы.
+  if (n >= 999_950) return (n / 1e6).toFixed(1).replace('.0', '') + 'M'
   if (n >= 1e3) return (n / 1e3).toFixed(1).replace('.0', '') + 'K'
   return String(n)
 }

@@ -14,12 +14,26 @@ function parse(): Route {
 
 export const route: Route = $state(parse())
 
-const scrollPos = new Map<string, number>()
-let current = route.hash
+// Прокрутку помним по записи истории, а не по адресу: «назад» возвращает на место,
+// а новый переход на ту же страницу (с главной, из поиска) открывает её сверху.
+// Метка записи живёт в history.state; у свежей записи её ещё нет.
+const scrollPos = new Map<number, number>()
+let seq = Date.now()
 let restoring = 0
 
+function entryKey(): number | undefined {
+  return (history.state as { k?: number } | null)?.k
+}
+
+function markEntry() {
+  const k = ++seq
+  history.replaceState({ ...(history.state as object | null), k }, '')
+  return k
+}
+
+let current = entryKey() ?? markEntry()
+
 function apply(next: Route) {
-  current = next.hash
   route.path = next.path
   route.query = next.query
   route.hash = next.hash
@@ -27,9 +41,10 @@ function apply(next: Route) {
 
 addEventListener('hashchange', () => {
   scrollPos.set(current, scrollY)
-  const next = parse()
-  apply(next)
-  restoreScroll(scrollPos.get(next.hash) ?? 0)
+  const k = entryKey()
+  current = k ?? markEntry()
+  apply(parse())
+  restoreScroll(k === undefined ? 0 : (scrollPos.get(k) ?? 0))
 })
 
 /** Страница догружает контент асинхронно, поэтому пробуем несколько кадров. */
@@ -50,7 +65,7 @@ function restoreScroll(y: number) {
 export function go(path: string, replace = false) {
   if (replace) {
     // Замена адреса без перехода (например, смена серии) — прокрутку не трогаем.
-    history.replaceState(null, '', '#' + path)
+    history.replaceState(history.state, '', '#' + path)
     apply(parse())
   } else {
     location.hash = path
